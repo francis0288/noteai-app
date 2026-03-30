@@ -45,7 +45,7 @@ export default function Sidebar({ view, onViewChange, tags, onDeleteTag, reminde
           <div className="mt-4">
             <div className="flex items-center gap-1 px-3 py-1">
               <TagIcon size={12} className="text-gray-400" />
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Labels</span>
+              <span className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Labels</span>
             </div>
             {tags.map((tag) => (
               <div
@@ -57,7 +57,7 @@ export default function Sidebar({ view, onViewChange, tags, onDeleteTag, reminde
               >
                 <div className="flex items-center gap-2">
                   <Hash size={14} className="text-gray-400" />
-                  <span className="text-sm text-gray-700">{tag.name}</span>
+                  <span className="text-base text-gray-700">{tag.name}</span>
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); onDeleteTag(tag.id); }}
@@ -92,7 +92,7 @@ function NavItem({
     >
       <div className="flex items-center gap-3">
         {icon}
-        <span className="text-sm">{label}</span>
+        <span className="text-base">{label}</span>
       </div>
       {badge !== undefined && badge > 0 && (
         <span className="text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center">

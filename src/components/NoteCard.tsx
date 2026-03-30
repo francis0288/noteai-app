@@ -59,7 +59,7 @@ export default function NoteCard({
       {/* Content */}
       <div className="p-3 pb-2">
         {note.title && (
-          <h3 className="font-medium text-gray-800 text-sm mb-1 pr-5 leading-snug line-clamp-2">
+          <h3 className="font-medium text-gray-800 text-base mb-1 pr-5 leading-snug line-clamp-2">
             {note.title}
           </h3>
         )}
@@ -67,18 +67,18 @@ export default function NoteCard({
         {note.type === "checklist" ? (
           <ul className="space-y-0.5">
             {note.checklistItems.slice(0, 8).map((item) => (
-              <li key={item.id} className="flex items-start gap-1.5 text-xs text-gray-600">
+              <li key={item.id} className="flex items-start gap-1.5 text-sm text-gray-600">
                 <span className={`mt-0.5 ${item.checked ? "line-through text-gray-400" : ""}`}>
                   {item.checked ? "☑" : "☐"} {item.text}
                 </span>
               </li>
             ))}
             {note.checklistItems.length > 8 && (
-              <li className="text-xs text-gray-400">+{note.checklistItems.length - 8} more</li>
+              <li className="text-sm text-gray-400">+{note.checklistItems.length - 8} more</li>
             )}
           </ul>
         ) : (
-          <p className="text-xs text-gray-600 line-clamp-6 whitespace-pre-wrap leading-relaxed">
+          <p className="text-sm text-gray-600 line-clamp-6 whitespace-pre-wrap leading-relaxed">
             {note.content}
           </p>
         )}
@@ -88,7 +88,7 @@ export default function NoteCard({
       {note.tags.length > 0 && (
         <div className="px-3 pb-2 flex flex-wrap gap-1">
           {note.tags.map((tag) => (
-            <span key={tag.id} className={`text-xs px-1.5 py-0.5 rounded-full ${tagColorToClass(tag.color)}`}>
+            <span key={tag.id} className={`text-sm px-2 py-0.5 rounded-full ${tagColorToClass(tag.color)}`}>
               {tag.name}
             </span>
           ))}
@@ -98,10 +98,10 @@ export default function NoteCard({
       {/* Footer */}
       <div className="px-3 pb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">{formatDate(note.updatedAt)}</span>
+          <span className="text-sm text-gray-400">{formatDate(note.updatedAt)}</span>
           {pendingReminders.length > 0 && (
-            <span className="flex items-center gap-0.5 text-xs text-yellow-600">
-              <Bell size={11} /> {pendingReminders.length}
+            <span className="flex items-center gap-0.5 text-sm text-yellow-600">
+              <Bell size={13} /> {pendingReminders.length}
             </span>
           )}
         </div>

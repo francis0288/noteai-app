@@ -130,7 +130,7 @@ export default function NoteEditor({
             value={title}
             onChange={(e) => { setTitle(e.target.value); markDirty(); }}
             placeholder="Title"
-            className="flex-1 bg-transparent text-gray-800 font-semibold text-base placeholder-gray-400 outline-none"
+            className="flex-1 bg-transparent text-gray-800 font-semibold text-lg placeholder-gray-400 outline-none"
           />
           <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 p-1">
             <X size={18} />
@@ -145,7 +145,7 @@ export default function NoteEditor({
               onChange={(e) => { setContent(e.target.value); markDirty(); }}
               placeholder="Take a note..."
               rows={6}
-              className="w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none resize-none leading-relaxed"
+              className="w-full bg-transparent text-base text-gray-700 placeholder-gray-400 outline-none resize-none leading-relaxed"
             />
           ) : (
             <div className="space-y-1">
@@ -160,7 +160,7 @@ export default function NoteEditor({
                     value={item.text}
                     onChange={(e) => updateCheckItem(i, e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && addCheckItem()}
-                    className={`flex-1 bg-transparent text-sm outline-none ${item.checked ? "line-through text-gray-400" : "text-gray-700"}`}
+                    className={`flex-1 bg-transparent text-base outline-none ${item.checked ? "line-through text-gray-400" : "text-gray-700"}`}
                     placeholder="List item..."
                   />
                   <button onClick={() => removeCheckItem(i)} className="text-gray-300 hover:text-red-400">

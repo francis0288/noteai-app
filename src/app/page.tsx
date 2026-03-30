@@ -265,7 +265,7 @@ export default function Home() {
 
           <div className="flex items-center gap-2 mr-2">
             <Lightbulb size={22} className="text-yellow-500" />
-            <span className="font-semibold text-gray-800 text-lg hidden sm:inline">NoteAI</span>
+            <span className="font-semibold text-gray-800 text-xl hidden sm:inline">NoteAI</span>
           </div>
 
           <SearchBar
@@ -295,10 +295,10 @@ export default function Home() {
             {view === "notes" && (
               <div className="mb-8 flex flex-col items-center gap-2">
                 <div
-                  className="w-full max-w-xl bg-white rounded-xl shadow-sm border border-gray-200 px-4 py-3 flex items-center gap-3 cursor-text hover:shadow-md transition-shadow"
+                  className="w-full max-w-xl bg-white rounded-xl shadow-sm border border-gray-200 px-4 py-4 flex items-center gap-3 cursor-text hover:shadow-md transition-shadow"
                   onClick={() => { setQuickType("text"); setEditingNote(null); }}
                 >
-                  <span className="text-gray-400 text-sm flex-1">Take a note...</span>
+                  <span className="text-gray-400 text-base flex-1">Take a note...</span>
                   <div className="flex gap-2">
                     <button
                       title="New checklist"

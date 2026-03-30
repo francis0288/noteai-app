@@ -21,7 +21,7 @@ export default function SearchBar({ value, onChange, onAISearch, aiActive }: Pro
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Search notes..."
-        className="flex-1 bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none"
+        className="flex-1 bg-transparent text-base text-gray-700 placeholder-gray-400 outline-none"
       />
       {value && (
         <button onClick={() => onChange("")} className="text-gray-400 hover:text-gray-600">
