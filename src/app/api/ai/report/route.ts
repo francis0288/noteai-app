@@ -1,27 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { aiGenerateReport } from "@/lib/ai";
+import { requireUser } from "@/lib/session";
+import { getUserApiKey } from "@/lib/user-api-key";
 import type { Note } from "@/types";
 
 export async function POST(req: NextRequest) {
+  const { userId, error } = await requireUser();
+  if (error) return error;
+
   const { topic, tagId, dateFrom, dateTo, noteIds } = await req.json();
 
-  const where = {
-    archived: false,
-    ...(tagId ? { tags: { some: { tagId } } } : {}),
-    ...(noteIds?.length ? { id: { in: noteIds as string[] } } : {}),
-    ...(dateFrom || dateTo
-      ? {
-          createdAt: {
-            ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
-            ...(dateTo ? { lte: new Date(dateTo) } : {}),
-          },
-        }
-      : {}),
-  };
-
   const dbNotes = await prisma.note.findMany({
-    where,
+    where: {
+      userId: userId!,
+      archived: false,
+      ...(tagId ? { tags: { some: { tagId } } } : {}),
+      ...(noteIds?.length ? { id: { in: noteIds as string[] } } : {}),
+      ...(dateFrom || dateTo ? { createdAt: { ...(dateFrom ? { gte: new Date(dateFrom) } : {}), ...(dateTo ? { lte: new Date(dateTo) } : {}) } } : {}),
+    },
     include: {
       tags: { include: { tag: true } },
       reminders: true,
@@ -51,6 +48,7 @@ export async function POST(req: NextRequest) {
     driveSync: null,
   }));
 
-  const report = await aiGenerateReport(notes, topic ?? "");
+  const apiKey = await getUserApiKey(userId!);
+  const report = await aiGenerateReport(notes, topic ?? "", apiKey);
   return NextResponse.json({ report });
 }

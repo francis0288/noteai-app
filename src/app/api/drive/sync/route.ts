@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { syncNoteToDrive } from "@/lib/drive";
+import { requireUser } from "@/lib/session";
 import type { Note } from "@/types";
 
 export async function POST() {
-  const cred = await prisma.driveCredential.findUnique({ where: { id: "singleton" } });
-  if (!cred) {
-    return NextResponse.json({ error: "Google Drive not connected" }, { status: 401 });
-  }
+  const { userId, error } = await requireUser();
+  if (error) return error;
+
+  const cred = await prisma.driveCredential.findUnique({ where: { userId: userId! } });
+  if (!cred) return NextResponse.json({ error: "Google Drive not connected" }, { status: 401 });
 
   const dbNotes = await prisma.note.findMany({
-    where: { archived: false },
+    where: { userId: userId!, archived: false },
     include: {
       tags: { include: { tag: true } },
       reminders: true,

@@ -7,8 +7,45 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id           String    @id @default(cuid())
+  name         String?
+  email        String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  notes           Note[]
+  tags            Tag[]
+  settings        UserSettings?
+  driveCredential DriveCredential?
+  resetTokens     PasswordResetToken[]
+}
+
+model UserSettings {
+  id              String  @id @default(cuid())
+  userId          String  @unique
+  anthropicApiKey String?
+  syncProvider    String? // "google_drive" | "onedrive" | "dropbox" | null
+  syncInterval    String  @default("manual") // "manual" | "5min" | "15min" | "30min" | "1hr"
+  theme           String  @default("system")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 model Note {
   id        String   @id @default(cuid())
+  userId    String
   title     String   @default("")
   content   String   @default("")
   color     String   @default("default")
@@ -18,6 +55,7 @@ model Note {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   tags           TagsOnNotes[]
   reminders      Reminder[]
   checklistItems ChecklistItem[]
@@ -26,11 +64,15 @@ model Note {
 }
 
 model Tag {
-  id    String @id @default(cuid())
-  name  String @unique
-  color String @default("gray")
+  id     String @id @default(cuid())
+  userId String
+  name   String
+  color  String @default("gray")
 
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   notes TagsOnNotes[]
+
+  @@unique([userId, name])
 }
 
 model TagsOnNotes {
@@ -77,10 +119,13 @@ model NoteAttachment {
 }
 
 model DriveCredential {
-  id           String   @id @default("singleton")
+  id           String   @id @default(cuid())
+  userId       String   @unique
   accessToken  String
   refreshToken String
   expiresAt    DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model DriveSync {

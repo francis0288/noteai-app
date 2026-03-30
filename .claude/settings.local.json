@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npx prisma:*)",
+      "Bash(taskkill /F /IM node.exe)",
+      "mcp__Windows-MCP__Process",
+      "Bash(npx tsc:*)",
+      "Bash(npx next:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(node -e \"console.log\\(require\\(''./node_modules/next-auth/package.json''\\).version\\)\")",
+      "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"yes\" npx prisma db push --force-reset)",
+      "Bash(C:/Projects/noteai-app/.env:*)",
+      "Bash(git reset:*)"
+    ]
+  }
+}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/session";
 
 const noteInclude = {
   tags: { include: { tag: true } },
@@ -9,7 +10,7 @@ const noteInclude = {
 };
 
 type DbNote = {
-  id: string; title: string; content: string; color: string; pinned: boolean;
+  id: string; userId: string; title: string; content: string; color: string; pinned: boolean;
   archived: boolean; type: string; createdAt: Date; updatedAt: Date;
   tags: { tag: { id: string; name: string; color: string } }[];
   reminders: { id: string; noteId: string; datetime: Date; recurring: string; status: string }[];
@@ -30,6 +31,9 @@ function formatNote(note: DbNote) {
 }
 
 export async function GET(req: NextRequest) {
+  const { userId, error } = await requireUser();
+  if (error) return error;
+
   const { searchParams } = new URL(req.url);
   const archived = searchParams.get("archived") === "true";
   const tagId = searchParams.get("tagId");
@@ -37,6 +41,7 @@ export async function GET(req: NextRequest) {
   const hasReminder = searchParams.get("hasReminder") === "true";
 
   const where = {
+    userId: userId!,
     archived,
     ...(tagId ? { tags: { some: { tagId } } } : {}),
     ...(search ? { OR: [{ title: { contains: search } }, { content: { contains: search } }] } : {}),
@@ -53,11 +58,15 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const { userId, error } = await requireUser();
+  if (error) return error;
+
   const body = await req.json();
   const { title, content, color, type, checklistItems } = body;
 
   const note = await prisma.note.create({
     data: {
+      userId: userId!,
       title: title ?? "",
       content: content ?? "",
       color: color ?? "default",

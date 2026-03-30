@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { aiChat } from "@/lib/ai";
+import { requireUser } from "@/lib/session";
+import { getUserApiKey } from "@/lib/user-api-key";
 import type { Note, AIChatMessage } from "@/types";
 
 export async function POST(req: NextRequest) {
-  const { message, history = [] } = await req.json() as { message: string; history: AIChatMessage[] };
+  const { userId, error } = await requireUser();
+  if (error) return error;
 
-  if (!message?.trim()) {
-    return NextResponse.json({ error: "Message is required" }, { status: 400 });
-  }
+  const { message, history = [] } = await req.json() as { message: string; history: AIChatMessage[] };
+  if (!message?.trim()) return NextResponse.json({ error: "Message is required" }, { status: 400 });
 
   const dbNotes = await prisma.note.findMany({
-    where: { archived: false },
+    where: { userId: userId!, archived: false },
     include: {
       tags: { include: { tag: true } },
       reminders: true,
@@ -38,6 +40,7 @@ export async function POST(req: NextRequest) {
     driveSync: null,
   }));
 
-  const reply = await aiChat(message, history, notes);
+  const apiKey = await getUserApiKey(userId!);
+  const reply = await aiChat(message, history, notes, apiKey);
   return NextResponse.json({ reply });
 }

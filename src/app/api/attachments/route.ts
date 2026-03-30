@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/session";
 
 function cuid(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
 }
 
 export async function POST(req: NextRequest) {
+  const { userId, error } = await requireUser();
+  if (error) return error;
   const formData = await req.formData();
   const noteId = formData.get("noteId") as string;
   const type = formData.get("type") as string;

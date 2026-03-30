@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { aiSearch } from "@/lib/ai";
+import { requireUser } from "@/lib/session";
+import { getUserApiKey } from "@/lib/user-api-key";
 import type { Note } from "@/types";
 
 export async function POST(req: NextRequest) {
-  const { query } = await req.json();
+  const { userId, error } = await requireUser();
+  if (error) return error;
 
-  if (!query?.trim()) {
-    return NextResponse.json({ error: "Query is required" }, { status: 400 });
-  }
+  const { query } = await req.json();
+  if (!query?.trim()) return NextResponse.json({ error: "Query is required" }, { status: 400 });
 
   const dbNotes = await prisma.note.findMany({
-    where: { archived: false },
+    where: { userId: userId!, archived: false },
     include: {
       tags: { include: { tag: true } },
       reminders: true,
@@ -37,6 +39,7 @@ export async function POST(req: NextRequest) {
     driveSync: null,
   }));
 
-  const results = await aiSearch(query, notes);
+  const apiKey = await getUserApiKey(userId!);
+  const results = await aiSearch(query, notes, apiKey);
   return NextResponse.json({ results, notes });
 }

@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/session";
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { userId, error } = await requireUser();
+  if (error) return error;
   const { id } = await params;
-  const body = await req.json();
-  const { status, datetime, recurring } = body;
+  const { status, datetime, recurring } = await req.json();
 
   const reminder = await prisma.reminder.update({
     where: { id },
@@ -21,10 +20,9 @@ export async function PATCH(
   return NextResponse.json({ ...reminder, datetime: reminder.datetime.toISOString() });
 }
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { userId, error } = await requireUser();
+  if (error) return error;
   const { id } = await params;
   await prisma.reminder.delete({ where: { id } });
   return NextResponse.json({ success: true });

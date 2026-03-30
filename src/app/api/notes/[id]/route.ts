@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/session";
 
 const noteInclude = {
   tags: { include: { tag: true } },
@@ -9,7 +10,7 @@ const noteInclude = {
 };
 
 type DbNote = {
-  id: string; title: string; content: string; color: string; pinned: boolean;
+  id: string; userId: string; title: string; content: string; color: string; pinned: boolean;
   archived: boolean; type: string; createdAt: Date; updatedAt: Date;
   tags: { tag: { id: string; name: string; color: string } }[];
   reminders: { id: string; noteId: string; datetime: Date; recurring: string; status: string }[];
@@ -30,16 +31,24 @@ function formatNote(note: DbNote) {
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { userId, error } = await requireUser();
+  if (error) return error;
   const { id } = await params;
-  const note = await prisma.note.findUnique({ where: { id }, include: noteInclude });
+  const note = await prisma.note.findUnique({ where: { id, userId: userId! }, include: noteInclude });
   if (!note) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(formatNote(note as DbNote));
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { userId, error } = await requireUser();
+  if (error) return error;
   const { id } = await params;
   const body = await req.json();
   const { title, content, color, pinned, archived, type, tagIds, checklistItems } = body;
+
+  // Verify ownership
+  const exists = await prisma.note.findUnique({ where: { id, userId: userId! }, select: { id: true } });
+  if (!exists) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   if (tagIds !== undefined) {
     await prisma.tagsOnNotes.deleteMany({ where: { noteId: id } });
@@ -74,7 +83,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { userId, error } = await requireUser();
+  if (error) return error;
   const { id } = await params;
+  const exists = await prisma.note.findUnique({ where: { id, userId: userId! }, select: { id: true } });
+  if (!exists) return NextResponse.json({ error: "Not found" }, { status: 404 });
   await prisma.note.delete({ where: { id } });
   return NextResponse.json({ success: true });
 }

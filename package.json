@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "@auth/prisma-adapter": "^2.11.1",
     "@prisma/client": "^6.5.0",
     "@tiptap/extension-highlight": "^3.21.0",
     "@tiptap/extension-placeholder": "^3.21.0",
@@ -21,10 +22,15 @@
     "@tiptap/pm": "^3.21.0",
     "@tiptap/react": "^3.21.0",
     "@tiptap/starter-kit": "^3.21.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/nodemailer": "^7.0.11",
+    "bcryptjs": "^3.0.3",
     "date-fns": "^4.1.0",
     "googleapis": "^171.4.0",
     "lucide-react": "^0.487.0",
     "next": "^16.2.1",
+    "next-auth": "^4.24.13",
+    "nodemailer": "^7.0.13",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
