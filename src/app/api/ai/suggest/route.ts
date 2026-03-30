@@ -29,6 +29,8 @@ function toNote(n: DbNote): Note {
       status: r.status as Note["reminders"][0]["status"],
     })),
     checklistItems: n.checklistItems,
+    attachments: [],
+    driveSync: null,
   };
 }
 

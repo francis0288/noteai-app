@@ -18,9 +18,11 @@ model Note {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tags          TagsOnNotes[]
-  reminders     Reminder[]
+  tags           TagsOnNotes[]
+  reminders      Reminder[]
   checklistItems ChecklistItem[]
+  attachments    NoteAttachment[]
+  driveSync      DriveSync?
 }
 
 model Tag {
@@ -57,6 +59,35 @@ model ChecklistItem {
   text    String
   checked Boolean @default(false)
   order   Int     @default(0)
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+}
+
+model NoteAttachment {
+  id        String   @id @default(cuid())
+  noteId    String
+  type      String   // "photo" | "voice"
+  url       String
+  filename  String
+  mimeType  String
+  sizeBytes Int      @default(0)
+  createdAt DateTime @default(now())
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+}
+
+model DriveCredential {
+  id           String   @id @default("singleton")
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+}
+
+model DriveSync {
+  id           String   @id @default(cuid())
+  noteId       String   @unique
+  driveFileId  String
+  lastSyncedAt DateTime
 
   note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
 }

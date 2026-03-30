@@ -5,23 +5,27 @@ const noteInclude = {
   tags: { include: { tag: true } },
   reminders: true,
   checklistItems: { orderBy: { order: "asc" as const } },
+  attachments: true,
 };
 
-function formatNote(note: Awaited<ReturnType<typeof prisma.note.findFirst>> & {
+type DbNote = {
+  id: string; title: string; content: string; color: string; pinned: boolean;
+  archived: boolean; type: string; createdAt: Date; updatedAt: Date;
   tags: { tag: { id: string; name: string; color: string } }[];
   reminders: { id: string; noteId: string; datetime: Date; recurring: string; status: string }[];
   checklistItems: { id: string; noteId: string; text: string; checked: boolean; order: number }[];
-}) {
-  if (!note) return null;
+  attachments: { id: string; noteId: string; type: string; url: string; filename: string; mimeType: string; sizeBytes: number; createdAt: Date }[];
+};
+
+function formatNote(note: DbNote) {
   return {
     ...note,
     createdAt: note.createdAt.toISOString(),
     updatedAt: note.updatedAt.toISOString(),
     tags: note.tags.map((t) => t.tag),
-    reminders: note.reminders.map((r) => ({
-      ...r,
-      datetime: r.datetime.toISOString(),
-    })),
+    reminders: note.reminders.map((r) => ({ ...r, datetime: r.datetime.toISOString() })),
+    attachments: note.attachments.map((a) => ({ ...a, createdAt: a.createdAt.toISOString() })),
+    driveSync: null,
   };
 }
 
@@ -35,9 +39,7 @@ export async function GET(req: NextRequest) {
   const where = {
     archived,
     ...(tagId ? { tags: { some: { tagId } } } : {}),
-    ...(search
-      ? { OR: [{ title: { contains: search } }, { content: { contains: search } }] }
-      : {}),
+    ...(search ? { OR: [{ title: { contains: search } }, { content: { contains: search } }] } : {}),
     ...(hasReminder ? { reminders: { some: { status: "pending" } } } : {}),
   };
 
@@ -47,7 +49,7 @@ export async function GET(req: NextRequest) {
     orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
   });
 
-  return NextResponse.json(notes.map(formatNote));
+  return NextResponse.json(notes.map((n) => formatNote(n as DbNote)));
 }
 
 export async function POST(req: NextRequest) {
@@ -61,19 +63,11 @@ export async function POST(req: NextRequest) {
       color: color ?? "default",
       type: type ?? "text",
       checklistItems: checklistItems
-        ? {
-            create: checklistItems.map(
-              (item: { text: string; checked?: boolean }, i: number) => ({
-                text: item.text,
-                checked: item.checked ?? false,
-                order: i,
-              })
-            ),
-          }
+        ? { create: checklistItems.map((item: { text: string; checked?: boolean }, i: number) => ({ text: item.text, checked: item.checked ?? false, order: i })) }
         : undefined,
     },
     include: noteInclude,
   });
 
-  return NextResponse.json(formatNote(note), { status: 201 });
+  return NextResponse.json(formatNote(note as DbNote), { status: 201 });
 }

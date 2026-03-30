@@ -32,6 +32,8 @@ export async function POST(req: NextRequest) {
     })),
     type: n.type as Note["type"],
     color: n.color as Note["color"],
+    attachments: [],
+    driveSync: null,
   }));
 
   const suggestions = await aiOrganize(notes);

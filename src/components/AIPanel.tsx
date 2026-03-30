@@ -1,50 +1,98 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
-  Sparkles, Search, FolderOpen, FileText, Lightbulb,
-  X, ChevronRight, Loader2, CheckCircle2, Tag as TagIcon
+  X, MessageCircle, FolderOpen, FileText, Search,
+  Send, Loader2, CheckCircle2, ChevronRight, Tag as TagIcon,
 } from "lucide-react";
-import type { Note, AIReport, AIOrganizeResult } from "@/types";
+import type { Note, AIChatMessage, AIOrganizeResult, AIReport } from "@/types";
 
 interface Props {
   notes: Note[];
   onSearchResults: (results: Note[]) => void;
   onApplyOrganize: (suggestions: AIOrganizeResult[], allNotes: Note[]) => void;
+  onOpenNote: (note: Note) => void;
   onClose: () => void;
 }
 
-type Mode = "home" | "search" | "organize" | "report";
+type Tab = "chat" | "organise" | "report" | "search";
 
-export default function AIPanel({ notes, onSearchResults, onApplyOrganize, onClose }: Props) {
-  const [mode, setMode] = useState<Mode>("home");
+const TABS = [
+  { id: "chat" as Tab,     icon: <MessageCircle size={15} />, label: "Chat" },
+  { id: "organise" as Tab, icon: <FolderOpen size={15} />,    label: "Organise" },
+  { id: "report" as Tab,   icon: <FileText size={15} />,      label: "Report" },
+  { id: "search" as Tab,   icon: <Search size={15} />,        label: "Search" },
+];
+
+export default function AIPanel({ notes, onSearchResults, onApplyOrganize, onOpenNote, onClose }: Props) {
+  const [tab, setTab] = useState<Tab>("chat");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Search
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchDone, setSearchDone] = useState(false);
+  // Chat
+  const [messages, setMessages] = useState<AIChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Organise
+  const [organiseResults, setOrganiseResults] = useState<AIOrganizeResult[] | null>(null);
 
   // Report
   const [reportTopic, setReportTopic] = useState("");
   const [report, setReport] = useState<AIReport | null>(null);
 
-  // Organize
-  const [organizeResults, setOrganizeResults] = useState<AIOrganizeResult[] | null>(null);
+  // Search
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Note[] | null>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const call = async (fn: () => Promise<void>) => {
-    setLoading(true);
-    setError(null);
-    try {
-      await fn();
-    } catch {
-      setError("AI request failed. Check your API key and try again.");
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true); setError(null);
+    try { await fn(); }
+    catch { setError("AI request failed. Check your API key."); }
+    finally { setLoading(false); }
   };
 
-  const handleSearch = () => call(async () => {
+  // ── Chat ──────────────────────────────────────────────────────────────────
+  const sendChat = () => call(async () => {
+    if (!chatInput.trim()) return;
+    const userMsg: AIChatMessage = { role: "user", content: chatInput };
+    const newHistory = [...messages, userMsg];
+    setMessages(newHistory);
+    setChatInput("");
+    const res = await fetch("/api/ai/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: chatInput, history: messages }),
+    });
+    const { reply } = await res.json();
+    setMessages([...newHistory, { role: "assistant", content: reply }]);
+  });
+
+  // ── Organise ──────────────────────────────────────────────────────────────
+  const runOrganise = () => call(async () => {
+    const res = await fetch("/api/ai/organize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+    const data = await res.json();
+    setOrganiseResults(data.suggestions);
+  });
+
+  // ── Report ────────────────────────────────────────────────────────────────
+  const runReport = () => call(async () => {
+    const res = await fetch("/api/ai/report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topic: reportTopic }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    setReport(data.report);
+  });
+
+  // ── Search ────────────────────────────────────────────────────────────────
+  const runSearch = () => call(async () => {
     const res = await fetch("/api/ai/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -55,141 +103,130 @@ export default function AIPanel({ notes, onSearchResults, onApplyOrganize, onClo
       .sort((a: { relevance: number }, b: { relevance: number }) => b.relevance - a.relevance)
       .map(({ noteId }: { noteId: string }) => data.notes.find((n: Note) => n.id === noteId))
       .filter(Boolean);
+    setSearchResults(ranked);
     onSearchResults(ranked);
-    setSearchDone(true);
-  });
-
-  const handleOrganize = () => call(async () => {
-    const res = await fetch("/api/ai/organize", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
-    const data = await res.json();
-    setOrganizeResults(data.suggestions);
-  });
-
-  const handleReport = () => call(async () => {
-    const res = await fetch("/api/ai/report", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ topic: reportTopic }),
-    });
-    const data = await res.json();
-    setReport(data.report);
   });
 
   return (
-    <div className="fixed right-0 top-0 h-full w-80 bg-white shadow-2xl border-l border-gray-200 z-40 flex flex-col">
+    <div className="fixed bottom-20 right-6 w-96 h-[560px] z-50 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-        <div className="flex items-center gap-2">
-          <Sparkles size={18} className="text-purple-500" />
-          <span className="font-semibold text-gray-800">AI Assistant</span>
-        </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-          <X size={18} />
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+        <span className="font-semibold text-gray-800 dark:text-gray-100 text-base">✦ AI Assistant</span>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+          <X size={16} />
         </button>
       </div>
 
-      {/* Back nav */}
-      {mode !== "home" && (
-        <button
-          onClick={() => { setMode("home"); setOrganizeResults(null); setReport(null); setSearchDone(false); }}
-          className="flex items-center gap-1 px-4 py-2 text-xs text-blue-500 hover:text-blue-700 border-b border-gray-100"
-        >
-          ← Back
-        </button>
-      )}
+      {/* Tabs */}
+      <div className="flex border-b border-gray-100 dark:border-gray-800">
+        {TABS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs font-medium transition-colors border-b-2 ${
+              tab === t.id
+                ? "border-purple-500 text-purple-600 dark:text-purple-400"
+                : "border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            }`}
+          >
+            {t.icon}
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
-        {/* Home */}
-        {mode === "home" && (
-          <div className="space-y-2">
-            <p className="text-xs text-gray-500 mb-3">What would you like AI to help with?</p>
-            {[
-              { id: "search", icon: <Search size={16} />, label: "Smart Search", desc: "Find notes with natural language" },
-              { id: "organize", icon: <FolderOpen size={16} />, label: "Auto-Organize", desc: "Suggest tags and categories" },
-              { id: "report", icon: <FileText size={16} />, label: "Generate Report", desc: "Summarize notes into a report" },
-            ].map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setMode(item.id as Mode)}
-                className="w-full flex items-start gap-3 p-3 rounded-xl hover:bg-purple-50 border border-gray-100 hover:border-purple-200 transition-colors text-left"
-              >
-                <span className="text-purple-500 mt-0.5">{item.icon}</span>
-                <div>
-                  <div className="text-sm font-medium text-gray-800">{item.label}</div>
-                  <div className="text-xs text-gray-400 mt-0.5">{item.desc}</div>
+      {/* Body */}
+      <div className="flex-1 flex flex-col min-h-0">
+        {/* ── Chat ── */}
+        {tab === "chat" && (
+          <>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {messages.length === 0 && (
+                <div className="text-center mt-8">
+                  <div className="text-4xl mb-3">💬</div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Ask anything about your notes.</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">e.g. "What did I write about travel?"</p>
+                  <div className="mt-4 space-y-2">
+                    {["What are my notes about?", "Any action items?", "Summarise this week's notes"].map(s => (
+                      <button key={s} onClick={() => setChatInput(s)} className="block w-full text-xs text-left text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 rounded-lg px-3 py-2 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors">
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <ChevronRight size={14} className="text-gray-300 ml-auto mt-1" />
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Search */}
-        {mode === "search" && (
-          <div className="space-y-3">
-            <h3 className="font-medium text-gray-800">Smart Search</h3>
-            <p className="text-xs text-gray-500">Ask in plain English, like "notes about my project deadlines"</p>
-            <textarea
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="What are you looking for?"
-              rows={3}
-              className="w-full text-sm border border-gray-200 rounded-lg p-2 focus:outline-none focus:border-purple-400 resize-none"
-            />
-            <button
-              onClick={handleSearch}
-              disabled={!searchQuery.trim() || loading}
-              className="w-full flex items-center justify-center gap-2 bg-purple-500 text-white rounded-lg py-2 text-sm font-medium hover:bg-purple-600 disabled:opacity-40 transition-colors"
-            >
-              {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
-              Search
-            </button>
-            {searchDone && !loading && (
-              <p className="text-xs text-green-600 flex items-center gap-1">
-                <CheckCircle2 size={12} /> Results shown in main view
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Organize */}
-        {mode === "organize" && (
-          <div className="space-y-3">
-            <h3 className="font-medium text-gray-800">Auto-Organize</h3>
-            <p className="text-xs text-gray-500">AI will analyze your notes and suggest tags for each one.</p>
-            {!organizeResults ? (
+              )}
+              {messages.map((m, i) => (
+                <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+                    m.role === "user"
+                      ? "bg-purple-500 text-white rounded-br-sm"
+                      : "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-bl-sm"
+                  }`}>
+                    {m.content}
+                  </div>
+                </div>
+              ))}
+              {loading && tab === "chat" && (
+                <div className="flex justify-start">
+                  <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-bl-sm px-3 py-2">
+                    <Loader2 size={14} className="animate-spin text-gray-400" />
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+            <div className="p-3 border-t border-gray-100 dark:border-gray-800 flex gap-2">
+              <input
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendChat()}
+                placeholder="Ask about your notes..."
+                className="flex-1 text-sm bg-gray-100 dark:bg-gray-800 rounded-xl px-3 py-2 outline-none text-gray-700 dark:text-gray-200 placeholder-gray-400"
+              />
               <button
-                onClick={handleOrganize}
-                disabled={loading || notes.length === 0}
-                className="w-full flex items-center justify-center gap-2 bg-purple-500 text-white rounded-lg py-2 text-sm font-medium hover:bg-purple-600 disabled:opacity-40 transition-colors"
+                onClick={sendChat}
+                disabled={!chatInput.trim() || loading}
+                className="p-2 bg-purple-500 text-white rounded-xl hover:bg-purple-600 disabled:opacity-40 transition-colors"
               >
-                {loading ? <Loader2 size={16} className="animate-spin" /> : <FolderOpen size={16} />}
-                Analyze {notes.length} notes
+                <Send size={15} />
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── Organise ── */}
+        {tab === "organise" && (
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="text-center mb-2">
+              <div className="text-3xl mb-2">🗂</div>
+              <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">Auto-Organise</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">AI analyses your notes and suggests tags and titles.</p>
+            </div>
+            {!organiseResults ? (
+              <button
+                onClick={runOrganise}
+                disabled={loading || notes.length === 0}
+                className="w-full flex items-center justify-center gap-2 bg-purple-500 text-white rounded-xl py-2.5 text-sm font-medium hover:bg-purple-600 disabled:opacity-40 transition-colors"
+              >
+                {loading ? <Loader2 size={15} className="animate-spin" /> : <FolderOpen size={15} />}
+                Analyse {notes.length} notes
               </button>
             ) : (
-              <div className="space-y-3">
-                <p className="text-xs text-green-600 flex items-center gap-1">
-                  <CheckCircle2 size={12} /> Found suggestions for {organizeResults.length} notes
+              <>
+                <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                  <CheckCircle2 size={12} /> Suggestions for {organiseResults.length} notes
                 </p>
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {organizeResults.map((r) => {
-                    const note = notes.find((n) => n.id === r.noteId);
+                <div className="space-y-2">
+                  {organiseResults.map(r => {
+                    const note = notes.find(n => n.id === r.noteId);
                     if (!note) return null;
                     return (
-                      <div key={r.noteId} className="text-xs bg-gray-50 rounded-lg p-2 space-y-1">
-                        <div className="font-medium text-gray-700 truncate">{note.title || note.content.slice(0, 40) || "(untitled)"}</div>
-                        {r.suggestedTitle && (
-                          <div className="text-gray-500">Title: <span className="text-blue-600">{r.suggestedTitle}</span></div>
-                        )}
+                      <div key={r.noteId} className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3 space-y-1.5">
+                        <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">{note.title || note.content.replace(/<[^>]*>/g, " ").slice(0, 40) || "(untitled)"}</p>
+                        {r.suggestedTitle && <p className="text-xs text-blue-500">→ "{r.suggestedTitle}"</p>}
                         <div className="flex flex-wrap gap-1">
-                          {r.suggestedTags.map((tag) => (
-                            <span key={tag} className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full">
-                              {tag}
-                            </span>
+                          {r.suggestedTags.map(tag => (
+                            <span key={tag} className="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full">{tag}</span>
                           ))}
                         </div>
                       </div>
@@ -197,66 +234,148 @@ export default function AIPanel({ notes, onSearchResults, onApplyOrganize, onClo
                   })}
                 </div>
                 <button
-                  onClick={() => onApplyOrganize(organizeResults, notes)}
-                  className="w-full bg-green-500 text-white rounded-lg py-2 text-sm font-medium hover:bg-green-600 transition-colors"
+                  onClick={() => onApplyOrganize(organiseResults, notes)}
+                  className="w-full bg-green-500 text-white rounded-xl py-2.5 text-sm font-medium hover:bg-green-600 transition-colors"
                 >
                   Apply All Suggestions
                 </button>
-              </div>
+                <button onClick={() => setOrganiseResults(null)} className="w-full text-sm text-gray-400 hover:text-gray-600 py-1">
+                  Run again
+                </button>
+              </>
             )}
           </div>
         )}
 
-        {/* Report */}
-        {mode === "report" && (
-          <div className="space-y-3">
-            <h3 className="font-medium text-gray-800">Generate Report</h3>
-            <p className="text-xs text-gray-500">AI will summarize your notes into a structured report.</p>
-            <input
-              value={reportTopic}
-              onChange={(e) => setReportTopic(e.target.value)}
-              placeholder="Topic or focus (optional)"
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-purple-400"
-            />
+        {/* ── Report ── */}
+        {tab === "report" && (
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="text-center mb-2">
+              <div className="text-3xl mb-2">📊</div>
+              <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">Generate Report</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">AI summarises your notes with key themes and action items.</p>
+            </div>
             {!report ? (
-              <button
-                onClick={handleReport}
-                disabled={loading || notes.length === 0}
-                className="w-full flex items-center justify-center gap-2 bg-purple-500 text-white rounded-lg py-2 text-sm font-medium hover:bg-purple-600 disabled:opacity-40 transition-colors"
-              >
-                {loading ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
-                Generate Report
-              </button>
+              <>
+                <input
+                  value={reportTopic}
+                  onChange={e => setReportTopic(e.target.value)}
+                  placeholder="Topic or focus (optional)"
+                  className="w-full text-sm bg-gray-100 dark:bg-gray-800 rounded-xl px-3 py-2 outline-none text-gray-700 dark:text-gray-200 placeholder-gray-400"
+                />
+                <button
+                  onClick={runReport}
+                  disabled={loading || notes.length === 0}
+                  className="w-full flex items-center justify-center gap-2 bg-purple-500 text-white rounded-xl py-2.5 text-sm font-medium hover:bg-purple-600 disabled:opacity-40 transition-colors"
+                >
+                  {loading ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}
+                  Generate Report
+                </button>
+              </>
             ) : (
-              <div className="space-y-3">
-                <div className="bg-gray-50 rounded-xl p-3 space-y-3">
-                  <h4 className="font-semibold text-gray-800">{report.title}</h4>
-                  <p className="text-xs text-gray-600">{report.summary}</p>
+              <>
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 space-y-3">
+                  <h4 className="font-semibold text-gray-800 dark:text-gray-100">{report.title}</h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{report.summary}</p>
+
+                  {report.themes && report.themes.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Key Themes</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {report.themes.map(t => (
+                          <span key={t} className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full">{t}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {report.actionItems && report.actionItems.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Action Items</p>
+                      <ul className="space-y-1">
+                        {report.actionItems.map((item, i) => (
+                          <li key={i} className="flex items-start gap-2 text-xs text-gray-600 dark:text-gray-300">
+                            <span className="text-purple-400 mt-0.5">•</span> {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   {report.sections.map((s, i) => (
                     <div key={i}>
-                      <div className="text-xs font-semibold text-gray-700 mb-0.5">{s.heading}</div>
-                      <p className="text-xs text-gray-600 leading-relaxed">{s.content}</p>
+                      <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-0.5">{s.heading}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{s.content}</p>
                     </div>
                   ))}
                 </div>
-                <button
-                  onClick={() => setReport(null)}
-                  className="w-full border border-gray-200 text-gray-600 rounded-lg py-1.5 text-sm hover:bg-gray-50 transition-colors"
-                >
+                <button onClick={() => setReport(null)} className="w-full text-sm text-gray-400 hover:text-gray-600 border border-gray-200 dark:border-gray-700 rounded-xl py-2 transition-colors">
                   Generate Another
                 </button>
-              </div>
+              </>
             )}
           </div>
         )}
 
-        {/* Error */}
-        {error && (
-          <div className="mt-3 text-xs text-red-500 bg-red-50 rounded-lg p-2">
-            {error}
+        {/* ── Search ── */}
+        {tab === "search" && (
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="text-center mb-2">
+              <div className="text-3xl mb-2">🔍</div>
+              <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">Smart Search</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Search using natural language.</p>
+            </div>
+            <div className="flex gap-2">
+              <input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && runSearch()}
+                placeholder='e.g. "health goals" or "project deadlines"'
+                className="flex-1 text-sm bg-gray-100 dark:bg-gray-800 rounded-xl px-3 py-2 outline-none text-gray-700 dark:text-gray-200 placeholder-gray-400"
+              />
+              <button
+                onClick={runSearch}
+                disabled={!searchQuery.trim() || loading}
+                className="p-2 bg-purple-500 text-white rounded-xl hover:bg-purple-600 disabled:opacity-40 transition-colors"
+              >
+                {loading ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
+              </button>
+            </div>
+
+            {searchResults !== null && (
+              <div className="space-y-2">
+                {searchResults.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-4">No matching notes found.</p>
+                ) : (
+                  <>
+                    <p className="text-xs text-gray-400">{searchResults.length} result{searchResults.length !== 1 ? "s" : ""}</p>
+                    {searchResults.map(note => (
+                      <button
+                        key={note.id}
+                        onClick={() => onOpenNote(note)}
+                        className="w-full text-left bg-gray-50 dark:bg-gray-800 rounded-xl p-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-start justify-between gap-2 group"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{note.title || "(untitled)"}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{note.content.replace(/<[^>]*>/g, " ").slice(0, 60)}</p>
+                        </div>
+                        <ChevronRight size={14} className="text-gray-300 group-hover:text-gray-500 flex-shrink-0 mt-0.5" />
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="px-4 pb-3">
+          <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg p-2">{error}</p>
+        </div>
+      )}
     </div>
   );
 }

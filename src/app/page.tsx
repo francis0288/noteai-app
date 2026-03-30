@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Plus, Sparkles, Lightbulb, Bell, Menu, X as XIcon,
-  CheckSquare, AlignLeft, Loader2
+  Lightbulb, Bell, Menu, X as XIcon,
+  CheckSquare, AlignLeft, Loader2, Settings, LayoutGrid, List,
 } from "lucide-react";
 import type {
   Note, Tag, RecurringType, NoteType, AIOrganizeResult, NotePayload
@@ -13,6 +13,8 @@ import NoteEditor from "@/components/NoteEditor";
 import Sidebar, { type SidebarView } from "@/components/Sidebar";
 import SearchBar from "@/components/SearchBar";
 import AIPanel from "@/components/AIPanel";
+import SettingsPanel from "@/components/SettingsPanel";
+import { useLayoutMode } from "@/hooks/useLayoutMode";
 
 type QuickType = NoteType | null;
 
@@ -22,13 +24,15 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<SidebarView>("notes");
   const [search, setSearch] = useState("");
-  const [editingNote, setEditingNote] = useState<Note | null | undefined>(undefined); // undefined = closed
+  const [editingNote, setEditingNote] = useState<Note | null | undefined>(undefined);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [aiFilteredNotes, setAiFilteredNotes] = useState<Note[] | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [quickType, setQuickType] = useState<QuickType>(null);
   const [reminderCount, setReminderCount] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [layoutMode, setLayoutMode] = useLayoutMode();
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = (msg: string) => {
@@ -36,6 +40,15 @@ export default function Home() {
     if (toastTimeout.current) clearTimeout(toastTimeout.current);
     toastTimeout.current = setTimeout(() => setToast(null), 3000);
   };
+
+  // Check for driveConnected query param on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("driveConnected") === "true") {
+      showToast("Google Drive connected!");
+      window.history.replaceState({}, "", "/");
+    }
+  }, []);
 
   // ── Data loading ──────────────────────────────────────────────────────────
 
@@ -89,7 +102,6 @@ export default function Home() {
       const now = new Date();
       for (const r of reminders) {
         if (new Date(r.datetime) <= now) {
-          // Trigger notification
           if ("Notification" in window && Notification.permission === "granted") {
             new Notification(`Reminder: ${r.note?.title || "Note"}`, {
               body: r.note?.content?.slice(0, 100) || "",
@@ -97,7 +109,6 @@ export default function Home() {
             });
           }
           showToast(`Reminder: ${r.note?.title || "Untitled note"}`);
-          // Mark as triggered
           await fetch(`/api/reminders/${r.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -121,7 +132,6 @@ export default function Home() {
       body: JSON.stringify(data),
     });
     const note: Note = await res.json();
-    // Apply tags if any
     if (data.tagIds?.length) {
       await fetch(`/api/notes/${note.id}`, {
         method: "PATCH",
@@ -241,7 +251,7 @@ export default function Home() {
     : tags.find((t) => `tag:${t.id}` === view)?.name ?? "Notes";
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f8f9fa]">
+    <div className="flex h-screen overflow-hidden bg-[#f8f9fa] dark:bg-[#202124]">
       {/* Sidebar */}
       {sidebarOpen && (
         <Sidebar
@@ -255,17 +265,17 @@ export default function Home() {
 
       <div className="flex flex-col flex-1 min-w-0">
         {/* Header */}
-        <header className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-100 shadow-sm z-10">
+        <header className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-[#202124] border-b border-gray-100 dark:border-gray-800 shadow-sm z-10">
           <button
             onClick={() => setSidebarOpen((x) => !x)}
-            className="p-2 rounded-full hover:bg-gray-100 text-gray-500"
+            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400"
           >
             <Menu size={20} />
           </button>
 
           <div className="flex items-center gap-2 mr-2">
             <Lightbulb size={22} className="text-yellow-500" />
-            <span className="font-semibold text-gray-800 text-xl hidden sm:inline">NoteAI</span>
+            <span className="font-semibold text-gray-800 dark:text-gray-100 text-xl hidden sm:inline">NoteAI</span>
           </div>
 
           <SearchBar
@@ -276,15 +286,11 @@ export default function Home() {
           />
 
           <button
-            onClick={() => setAiPanelOpen((x) => !x)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              aiPanelOpen
-                ? "bg-purple-500 text-white"
-                : "text-purple-600 hover:bg-purple-50 border border-purple-200"
-            }`}
+            onClick={() => setSettingsOpen(true)}
+            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400"
+            title="Settings"
           >
-            <Sparkles size={15} />
-            <span className="hidden sm:inline">AI</span>
+            <Settings size={20} />
           </button>
         </header>
 
@@ -295,22 +301,22 @@ export default function Home() {
             {view === "notes" && (
               <div className="mb-8 flex flex-col items-center gap-2">
                 <div
-                  className="w-full max-w-xl bg-white rounded-xl shadow-sm border border-gray-200 px-4 py-4 flex items-center gap-3 cursor-text hover:shadow-md transition-shadow"
+                  className="w-full max-w-xl bg-white dark:bg-[#2d2d2d] rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 px-4 py-4 flex items-center gap-3 cursor-text hover:shadow-md transition-shadow"
                   onClick={() => { setQuickType("text"); setEditingNote(null); }}
                 >
-                  <span className="text-gray-400 text-base flex-1">Take a note...</span>
+                  <span className="text-gray-400 dark:text-gray-500 text-base flex-1">Take a note...</span>
                   <div className="flex gap-2">
                     <button
                       title="New checklist"
                       onClick={(e) => { e.stopPropagation(); setQuickType("checklist"); setEditingNote(null); }}
-                      className="p-1 text-gray-400 hover:text-gray-600"
+                      className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                     >
                       <CheckSquare size={18} />
                     </button>
                     <button
                       title="New text note"
                       onClick={(e) => { e.stopPropagation(); setQuickType("text"); setEditingNote(null); }}
-                      className="p-1 text-gray-400 hover:text-gray-600"
+                      className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                     >
                       <AlignLeft size={18} />
                     </button>
@@ -319,24 +325,50 @@ export default function Home() {
               </div>
             )}
 
-            {/* Section label */}
+            {/* Section label + layout toggle */}
             <div className="flex items-center justify-between mb-4">
-              <h1 className="text-sm font-semibold text-gray-500 uppercase tracking-widest">
-                {viewLabel}
+              <div className="flex items-center gap-2">
+                <h1 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                  {viewLabel}
+                  {aiFilteredNotes && (
+                    <span className="ml-2 normal-case text-purple-500 font-normal">
+                      — AI Search Results
+                    </span>
+                  )}
+                </h1>
                 {aiFilteredNotes && (
-                  <span className="ml-2 normal-case text-purple-500 font-normal">
-                    — AI Search Results
-                  </span>
+                  <button
+                    onClick={() => setAiFilteredNotes(null)}
+                    className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex items-center gap-1"
+                  >
+                    <XIcon size={12} /> Clear
+                  </button>
                 )}
-              </h1>
-              {aiFilteredNotes && (
+              </div>
+              <div className="flex items-center gap-1">
                 <button
-                  onClick={() => setAiFilteredNotes(null)}
-                  className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
+                  onClick={() => setLayoutMode("grid")}
+                  title="Grid view"
+                  className={`p-1.5 rounded-md transition-colors ${
+                    layoutMode === "grid"
+                      ? "text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800"
+                      : "text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  }`}
                 >
-                  <XIcon size={12} /> Clear AI filter
+                  <LayoutGrid size={16} />
                 </button>
-              )}
+                <button
+                  onClick={() => setLayoutMode("list")}
+                  title="List view"
+                  className={`p-1.5 rounded-md transition-colors ${
+                    layoutMode === "list"
+                      ? "text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800"
+                      : "text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  }`}
+                >
+                  <List size={16} />
+                </button>
+              </div>
             </div>
 
             {loading ? (
@@ -354,6 +386,7 @@ export default function Home() {
                 onAddReminder={addReminder}
                 onDeleteReminder={deleteReminder}
                 onAISuggest={handleAISuggest}
+                layoutMode={layoutMode}
                 emptyMessage={
                   search ? "No notes match your search."
                   : view === "archive" ? "No archived notes."
@@ -366,6 +399,19 @@ export default function Home() {
         </main>
       </div>
 
+      {/* Floating ✦ AI button */}
+      <button
+        onClick={() => setAiPanelOpen((x) => !x)}
+        className={`fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full shadow-lg text-2xl flex items-center justify-center transition-all ${
+          aiPanelOpen
+            ? "bg-purple-600 text-white scale-110"
+            : "bg-white dark:bg-[#2d2d2d] text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 border border-gray-200 dark:border-gray-700"
+        }`}
+        title="AI Assistant"
+      >
+        ✦
+      </button>
+
       {/* AI Panel */}
       {aiPanelOpen && (
         <AIPanel
@@ -375,6 +421,7 @@ export default function Home() {
             setAiPanelOpen(false);
           }}
           onApplyOrganize={handleAIOrganize}
+          onOpenNote={(note) => { setEditingNote(note); setAiPanelOpen(false); }}
           onClose={() => setAiPanelOpen(false)}
         />
       )}
@@ -384,6 +431,7 @@ export default function Home() {
         <NoteEditor
           note={editingNote}
           allTags={tags}
+          initialFocus="content"
           onSave={async (data) => {
             const note = await createNote({ ...data, type: quickType ?? "text" });
             setQuickType(null);
@@ -399,9 +447,12 @@ export default function Home() {
         />
       )}
 
+      {/* Settings Panel */}
+      {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
+
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-sm px-4 py-2 rounded-full shadow-lg z-50 animate-fade-in">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-gray-800 dark:bg-gray-700 text-white text-sm px-4 py-2 rounded-full shadow-lg z-50">
           {toast}
         </div>
       )}

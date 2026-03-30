@@ -1,21 +1,10 @@
-export type NoteColor =
-  | "default"
-  | "red"
-  | "orange"
-  | "yellow"
-  | "green"
-  | "teal"
-  | "blue"
-  | "darkblue"
-  | "purple"
-  | "pink"
-  | "brown"
-  | "gray";
+export type NoteColor = "default" | "yellow" | "green" | "blue" | "purple" | "pink";
 
 export type NoteType = "text" | "checklist";
 
 export type ReminderStatus = "pending" | "triggered" | "dismissed";
 export type RecurringType = "none" | "daily" | "weekly" | "monthly";
+export type LayoutMode = "grid" | "list";
 
 export interface Tag {
   id: string;
@@ -39,6 +28,24 @@ export interface Reminder {
   status: ReminderStatus;
 }
 
+export interface NoteAttachment {
+  id: string;
+  noteId: string;
+  type: "photo" | "voice";
+  url: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+}
+
+export interface DriveSync {
+  id: string;
+  noteId: string;
+  driveFileId: string;
+  lastSyncedAt: string;
+}
+
 export interface Note {
   id: string;
   title: string;
@@ -52,6 +59,13 @@ export interface Note {
   tags: Tag[];
   reminders: Reminder[];
   checklistItems: ChecklistItem[];
+  attachments: NoteAttachment[];
+  driveSync: DriveSync | null;
+}
+
+export interface AIChatMessage {
+  role: "user" | "assistant";
+  content: string;
 }
 
 export interface AISearchResult {
@@ -69,11 +83,16 @@ export interface AIOrganizeResult {
 export interface AIReport {
   title: string;
   summary: string;
-  sections: {
-    heading: string;
-    content: string;
-  }[];
+  sections: { heading: string; content: string }[];
+  themes?: string[];
+  actionItems?: string[];
   generatedAt: string;
+}
+
+export interface AISuggestion {
+  title?: string;
+  summary?: string;
+  relatedNoteIds?: string[];
 }
 
 /** Flexible note update payload used across create/update operations */
@@ -87,10 +106,4 @@ export interface NotePayload {
   tagIds?: string[];
   checklistItems?: { text: string; checked?: boolean }[];
   tags?: Tag[];
-}
-
-export interface AISuggestion {
-  title?: string;
-  summary?: string;
-  relatedNoteIds?: string[];
 }

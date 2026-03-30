@@ -7,6 +7,11 @@
   --foreground: #202124;
 }
 
+.dark {
+  --background: #202124;
+  --foreground: #e8eaed;
+}
+
 body {
   background-color: var(--background);
   color: var(--foreground);
@@ -32,4 +37,11 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #bdc1c6;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #5f6368;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #80868b;
 }
