@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  title     String   @default("")
+  content   String   @default("")
+  color     String   @default("default")
+  pinned    Boolean  @default(false)
+  archived  Boolean  @default(false)
+  type      String   @default("text") // text | checklist
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tags          TagsOnNotes[]
+  reminders     Reminder[]
+  checklistItems ChecklistItem[]
+}
+
+model Tag {
+  id    String @id @default(cuid())
+  name  String @unique
+  color String @default("gray")
+
+  notes TagsOnNotes[]
+}
+
+model TagsOnNotes {
+  noteId String
+  tagId  String
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, tagId])
+}
+
+model Reminder {
+  id        String   @id @default(cuid())
+  noteId    String
+  datetime  DateTime
+  recurring String   @default("none") // none | daily | weekly | monthly
+  status    String   @default("pending") // pending | triggered | dismissed
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+}
+
+model ChecklistItem {
+  id      String  @id @default(cuid())
+  noteId  String
+  text    String
+  checked Boolean @default(false)
+  order   Int     @default(0)
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+}
