@@ -32,8 +32,10 @@ export default function SettingsPanel({ onClose }: Props) {
   const [savingKey, setSavingKey] = useState(false);
 
   const [driveStatus, setDriveStatus] = useState<{ connected: boolean; email?: string } | null>(null);
+  const [calStatus, setCalStatus] = useState<{ connected: boolean } | null>(null);
   const [syncInterval, setSyncInterval] = useState("manual");
   const [syncing, setSyncing] = useState(false);
+  const [calSyncing, setCalSyncing] = useState(false);
 
   const importRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
@@ -45,6 +47,7 @@ export default function SettingsPanel({ onClose }: Props) {
       if (s.syncInterval) setSyncInterval(s.syncInterval);
     }).catch(() => {});
     fetch("/api/drive/status").then(r => r.json()).then(setDriveStatus).catch(() => {});
+    fetch("/api/calendar/status").then(r => r.json()).then(setCalStatus).catch(() => {});
   }, []);
 
   const saveApiKey = async () => {
@@ -72,6 +75,12 @@ export default function SettingsPanel({ onClose }: Props) {
     setSyncing(true);
     await fetch("/api/drive/sync", { method: "POST" });
     setSyncing(false);
+  };
+
+  const triggerCalSync = async () => {
+    setCalSyncing(true);
+    await fetch("/api/calendar/sync", { method: "POST" });
+    setCalSyncing(false);
   };
 
   const handleExport = () => { window.location.href = "/api/notes/export"; };
@@ -115,7 +124,7 @@ export default function SettingsPanel({ onClose }: Props) {
             <button key={t.id} onClick={() => setActiveTab(t.id)}
               className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
                 activeTab === t.id
-                  ? "border-brand-500 text-brand-600 dark:text-amber-400"
+                  ? "border-brand-500 text-brand-600 dark:text-cyan-400"
                   : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
               }`}
             >{t.label}</button>
@@ -136,7 +145,7 @@ export default function SettingsPanel({ onClose }: Props) {
                   <button key={opt.value} onClick={() => setTheme(opt.value)}
                     className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
                       theme === opt.value
-                        ? "border-brand-500 bg-brand-50 dark:bg-amber-900/20 text-brand-600 dark:text-amber-400"
+                        ? "border-brand-500 bg-brand-50 dark:bg-cyan-900/20 text-brand-600 dark:text-cyan-400"
                         : "border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300"
                     }`}
                   >
@@ -223,6 +232,33 @@ export default function SettingsPanel({ onClose }: Props) {
                   <a href="/api/drive/auth"
                     className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-medium transition-colors">
                     <Cloud size={16} /> Connect Google Drive
+                  </a>
+                )}
+              </div>
+
+              {/* Google Calendar */}
+              <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-11 h-11 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
+                    <Cloud size={22} className="text-green-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-800 dark:text-gray-100">Google Calendar</p>
+                    <p className={`text-sm ${calStatus?.connected ? "text-green-600 dark:text-green-400" : "text-gray-500 dark:text-gray-400"}`}>
+                      {calStatus?.connected ? "Connected" : "Not connected"}
+                    </p>
+                  </div>
+                </div>
+                {calStatus?.connected ? (
+                  <button onClick={triggerCalSync} disabled={calSyncing}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-60">
+                    <RefreshCw size={16} className={calSyncing ? "animate-spin" : ""} />
+                    {calSyncing ? "Syncing…" : "Sync Reminders Now"}
+                  </button>
+                ) : (
+                  <a href="/api/calendar/auth"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl text-sm font-medium transition-colors">
+                    <Cloud size={16} /> Connect Google Calendar
                   </a>
                 )}
               </div>

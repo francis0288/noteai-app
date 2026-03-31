@@ -35,6 +35,10 @@ export async function POST() {
       checklistItems: n.checklistItems,
       attachments: n.attachments.map(a => ({ ...a, createdAt: a.createdAt.toISOString(), type: a.type as "photo" | "voice" })),
       driveSync: n.driveSync ? { ...n.driveSync, lastSyncedAt: n.driveSync.lastSyncedAt.toISOString() } : null,
+      projects: [],
+      locked: false,
+    parentId: null,
+      children: [],
     };
 
     try {

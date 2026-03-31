@@ -56,15 +56,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 to-yellow-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-cyan-50 to-blue-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-amber-400 rounded-2xl shadow-lg mb-3">
-            <span className="text-3xl">✦</span>
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="NoteAI" className="w-28 h-28 object-contain mx-auto mb-1" style={{ mixBlendMode: "multiply" }} />
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">NoteAI</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Your AI-powered notebook</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Smart. Organized. Effortless.</p>
         </div>
 
         {/* Card */}
@@ -74,13 +73,13 @@ export default function LoginPage() {
             <button
               onClick={() => { setMode("login"); reset(); }}
               className={`pb-3 px-4 text-base font-medium transition-colors border-b-2 -mb-px ${
-                mode === "login" ? "border-amber-500 text-amber-600" : "border-transparent text-gray-400 hover:text-gray-600"
+                mode === "login" ? "border-brand-500 text-brand-600" : "border-transparent text-gray-400 hover:text-gray-600"
               }`}
             >Log In</button>
             <button
               onClick={() => { setMode("register"); reset(); }}
               className={`pb-3 px-4 text-base font-medium transition-colors border-b-2 -mb-px ${
-                mode === "register" ? "border-amber-500 text-amber-600" : "border-transparent text-gray-400 hover:text-gray-600"
+                mode === "register" ? "border-brand-500 text-brand-600" : "border-transparent text-gray-400 hover:text-gray-600"
               }`}
             >Sign Up</button>
           </div>
@@ -100,12 +99,12 @@ export default function LoginPage() {
             <form onSubmit={handleLogin} className="space-y-4">
               <Field label="Email" value={email} onChange={setEmail} type="email" placeholder="you@example.com" />
               <PasswordField label="Password" value={password} onChange={setPassword} show={showPw} onToggle={() => setShowPw(x => !x)} />
-              <button type="submit" disabled={loading} className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 px-4 rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-2 text-base">
+              <button type="submit" disabled={loading} className="w-full bg-brand-500 hover:bg-brand-600 text-white font-semibold py-3 px-4 rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-2 text-base">
                 {loading && <Loader2 size={18} className="animate-spin" />}
                 Log In
               </button>
               <button type="button" onClick={() => { setMode("forgot"); reset(); }}
-                className="w-full text-center text-sm text-amber-600 hover:underline">
+                className="w-full text-center text-sm text-brand-600 hover:underline">
                 Forgot password?
               </button>
             </form>
@@ -116,7 +115,7 @@ export default function LoginPage() {
               <Field label="Name (optional)" value={name} onChange={setName} type="text" placeholder="Your name" />
               <Field label="Email" value={email} onChange={setEmail} type="email" placeholder="you@example.com" />
               <PasswordField label="Password (min 8 chars)" value={password} onChange={setPassword} show={showPw} onToggle={() => setShowPw(x => !x)} />
-              <button type="submit" disabled={loading} className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 px-4 rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-2 text-base">
+              <button type="submit" disabled={loading} className="w-full bg-brand-500 hover:bg-brand-600 text-white font-semibold py-3 px-4 rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-2 text-base">
                 {loading && <Loader2 size={18} className="animate-spin" />}
                 Create Account
               </button>
@@ -127,12 +126,12 @@ export default function LoginPage() {
             <form onSubmit={handleForgot} className="space-y-4">
               <p className="text-sm text-gray-500 dark:text-gray-400">Enter your email and we&apos;ll send you a password reset link.</p>
               <Field label="Email" value={email} onChange={setEmail} type="email" placeholder="you@example.com" />
-              <button type="submit" disabled={loading} className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 px-4 rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-2 text-base">
+              <button type="submit" disabled={loading} className="w-full bg-brand-500 hover:bg-brand-600 text-white font-semibold py-3 px-4 rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-2 text-base">
                 {loading && <Loader2 size={18} className="animate-spin" />}
                 Send Reset Link
               </button>
               <button type="button" onClick={() => { setMode("login"); reset(); }}
-                className="w-full text-center text-sm text-amber-600 hover:underline">
+                className="w-full text-center text-sm text-brand-600 hover:underline">
                 Back to log in
               </button>
             </form>
@@ -151,7 +150,7 @@ function Field({ label, value, onChange, type, placeholder }: {
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>
       <input
         type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} required={type !== "text" || label.includes("optional") === false}
-        className="w-full border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-base bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+        className="w-full border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-base bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent"
       />
     </div>
   );
@@ -166,7 +165,7 @@ function PasswordField({ label, value, onChange, show, onToggle }: {
       <div className="relative">
         <input
           type={show ? "text" : "password"} value={value} onChange={e => onChange(e.target.value)} required
-          className="w-full border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-base bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent pr-12"
+          className="w-full border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-base bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent pr-12"
         />
         <button type="button" onClick={onToggle} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
           {show ? <EyeOff size={18} /> : <Eye size={18} />}

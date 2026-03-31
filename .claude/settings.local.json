@@ -13,7 +13,27 @@
       "Bash(node -e \"console.log\\(require\\(''./node_modules/next-auth/package.json''\\).version\\)\")",
       "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"yes\" npx prisma db push --force-reset)",
       "Bash(C:/Projects/noteai-app/.env:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(node -e \"const {PrismaClient} = require\\(''@prisma/client''\\); const p = new PrismaClient\\(\\); console.log\\(''Project model:'', typeof p.project\\); console.log\\(''ProjectNote model:'', typeof p.projectNote\\); p.$disconnect\\(\\);\")",
+      "Bash(node --input-type=commonjs -e \"const {PrismaClient} = require\\(''@prisma/client''\\); const p = new PrismaClient\\(\\); console.log\\(''Project model:'', typeof p.project\\); console.log\\(''ProjectNote model:'', typeof p.projectNote\\);\")",
+      "Bash(ls C:/Projects/noteai-app/src/app/api/projects/[id]/)",
+      "Bash(cat C:/Projects/noteai-app/src/app/api/projects/[id]/notes/route.ts)",
+      "Bash(npm run:*)",
+      "Bash(curl -s http://localhost:3000 -o /dev/null -w \"%{http_code}\")",
+      "Bash(node -e \"require\\(''@tiptap/extension-table''\\); console.log\\(''ok''\\)\")",
+      "Bash(node -e \"const m = require\\(''@tiptap/extension-table''\\); console.log\\(Object.keys\\(m\\)\\)\")",
+      "Bash(for f:*)",
+      "Bash(do sed:*)",
+      "Bash(done)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/api/notes)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/)",
+      "Bash(python -c \"import sys,json; lines=sys.stdin.readlines\\(\\); msgs=[json.loads\\(l\\) for l in lines if l.strip\\(\\)]; [print\\(m.get\\(''''message'''',''''''''\\)\\) for m in msgs[-20:] if isinstance\\(m.get\\(''''message'''',''''''''\\),str\\) and len\\(m.get\\(''''message'''',''''''''\\)\\)>100]\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "Bash(Get-Process -Name node -ErrorAction SilentlyContinue)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(pkill -f \"node.*next\")",
+      "Bash(fuser -k 3000/tcp)"
     ]
   }
 }

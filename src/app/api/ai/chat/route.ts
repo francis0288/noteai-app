@@ -38,6 +38,10 @@ export async function POST(req: NextRequest) {
     checklistItems: n.checklistItems,
     attachments: n.attachments.map((a) => ({ ...a, createdAt: a.createdAt.toISOString(), type: a.type as "photo" | "voice" })),
     driveSync: null,
+    projects: [],
+    locked: false,
+    parentId: null,
+    children: [],
   }));
 
   const apiKey = await getUserApiKey(userId!);

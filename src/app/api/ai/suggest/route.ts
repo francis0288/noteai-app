@@ -26,6 +26,10 @@ function toNote(n: {
     checklistItems: n.checklistItems,
     attachments: [],
     driveSync: null,
+    projects: [],
+    locked: false,
+    parentId: null,
+    children: [],
   };
 }
 

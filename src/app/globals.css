@@ -1,47 +1,164 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&family=Syne:wght@700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ── Design tokens ────────────────────────────────────────────── */
 :root {
-  --background: #f8f9fa;
-  --foreground: #202124;
+  --orange:       #F4763A;
+  --orange-dim:   rgba(244,118,58,0.15);
+  --pink:         #F589A3;
+  --pink-dim:     rgba(245,137,163,0.14);
+  --yellow:       #F2E832;
+  --yellow-dim:   rgba(242,232,50,0.13);
+  --cyan:         #29BBD8;
+  --cyan-dim:     rgba(41,187,216,0.13);
+  --purple:       #6B50A0;
+  --purple-dim:   rgba(107,80,160,0.18);
+
+  --bg-void:      #07080C;
+  --bg-base:      #0C0E15;
+  --bg-surface:   #111420;
+  --bg-elevated:  #181C2C;
+  --bg-hover:     #1F2438;
+
+  --border:       rgba(255,255,255,0.06);
+  --border-hi:    rgba(255,255,255,0.12);
+
+  --text-1:       #F0F2FA;
+  --text-2:       #8B92B0;
+  --text-3:       #4E5470;
+
+  /* Legacy aliases used by older components */
+  --background:   #0C0E15;
+  --foreground:   #F0F2FA;
 }
 
-.dark {
-  --background: #202124;
-  --foreground: #e8eaed;
-}
+/* ── Base ─────────────────────────────────────────────────────── */
+html { height: 100%; }
 
 body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: 16px;
+  height: 100%;
+  background-color: var(--bg-void);
+  color: var(--text-1);
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
 }
 
-* {
-  box-sizing: border-box;
+* { box-sizing: border-box; }
+
+/* ── Animations ───────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Smooth scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #dadce0;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #bdc1c6;
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1);   opacity: 1; }
+  50%       { transform: scale(1.5); opacity: 0.55; }
 }
 
-.dark ::-webkit-scrollbar-thumb {
-  background: #5f6368;
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.animate-fade-up {
+  animation: fadeUp 0.38s ease forwards;
 }
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: #80868b;
+
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* ── TipTap ───────────────────────────────────────────────────── */
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--text-3);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.rich-editor .prose {
+  font-size: 0.95rem;
+  line-height: 1.75;
+  color: var(--text-2);
+}
+
+.rich-editor .prose p { margin-bottom: 0.5em; }
+
+.rich-editor .prose ul  { list-style-type: disc;    padding-left: 1.5rem; margin-bottom: 0.5em; }
+.rich-editor .prose ol  { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 0.5em; }
+.rich-editor .prose li  { margin-bottom: 0.2em; display: list-item; }
+.rich-editor .prose ul ul  { list-style-type: circle; }
+.rich-editor .prose ul ul ul { list-style-type: square; }
+
+/* TipTap table */
+.rich-editor .prose table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+.rich-editor .prose td,
+.rich-editor .prose th  { border: 1px solid var(--border-hi); padding: 8px 12px; min-width: 80px; text-align: left; vertical-align: top; position: relative; }
+.rich-editor .prose th  { background: var(--bg-elevated); font-weight: 600; color: var(--text-1); }
+.rich-editor .prose .selectedCell::after {
+  background: var(--cyan-dim);
+  content: ""; left: 0; right: 0; top: 0; bottom: 0;
+  pointer-events: none; position: absolute; z-index: 2;
+}
+
+/* ── Note card glass sheen (inner div, not the card itself to avoid clipping dropdown) ── */
+.note-card-sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(140deg, rgba(255,255,255,0.03) 0%, transparent 55%);
+  pointer-events: none;
+  border-radius: 15px;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+/* ── Utility classes ──────────────────────────────────────────── */
+.font-display   { font-family: 'Instrument Serif', serif; font-style: italic; }
+.font-syne      { font-family: 'Syne', sans-serif; }
+.font-sans-app  { font-family: 'DM Sans', sans-serif; }
+
+/* Nav active glow — left border pseudo-element (accounts for 9px margin) */
+.nav-active-glow::before {
+  content: '';
+  position: absolute;
+  left: -9px; top: 22%; bottom: 22%;
+  width: 3.5px;
+  border-radius: 0 4px 4px 0;
+  background: var(--orange);
+  box-shadow: 0 0 10px rgba(244,118,58,0.7);
+}
+
+/* Orange pulse glow for CTA */
+.btn-cta {
+  background: var(--orange);
+  color: #fff;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  border-radius: 100px;
+  padding: 9px 20px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(244,118,58,0.30);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  white-space: nowrap;
+}
+.btn-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(244,118,58,0.45);
+}
+
+/* Search focus ring */
+.search-wrap:focus-within {
+  border-color: var(--cyan) !important;
+  box-shadow: 0 0 0 3px var(--cyan-dim);
 }

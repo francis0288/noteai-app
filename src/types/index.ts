@@ -12,6 +12,14 @@ export interface Tag {
   color: string;
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  noteCount: number;
+}
+
 export interface ChecklistItem {
   id: string;
   noteId: string;
@@ -46,6 +54,15 @@ export interface DriveSync {
   lastSyncedAt: string;
 }
 
+export interface SubNote {
+  id: string;
+  title: string;
+  content: string;
+  type: NoteType;
+  updatedAt: string;
+  childCount: number;
+}
+
 export interface Note {
   id: string;
   title: string;
@@ -54,6 +71,7 @@ export interface Note {
   pinned: boolean;
   archived: boolean;
   type: NoteType;
+  locked: boolean;
   createdAt: string;
   updatedAt: string;
   tags: Tag[];
@@ -61,6 +79,18 @@ export interface Note {
   checklistItems: ChecklistItem[];
   attachments: NoteAttachment[];
   driveSync: DriveSync | null;
+  projects: { id: string; name: string; color: string }[];
+  parentId: string | null;
+  children: SubNote[];
+}
+
+export interface NoteTemplate {
+  id: string;
+  name: string;
+  content: string;
+  type: NoteType;
+  color: NoteColor;
+  createdAt: string;
 }
 
 export interface AIChatMessage {

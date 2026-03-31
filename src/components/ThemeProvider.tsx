@@ -21,11 +21,11 @@ export function useTheme() {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("system");
-  const [isDark, setIsDark] = useState(false);
+  const [theme, setThemeState] = useState<Theme>("dark");
+  const [isDark, setIsDark] = useState(true);
 
   useEffect(() => {
-    const stored = (localStorage.getItem("theme") as Theme) ?? "system";
+    const stored = (localStorage.getItem("theme") as Theme) ?? "dark";
     setThemeState(stored);
     applyTheme(stored);
   }, []);

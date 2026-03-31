@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import {
   X, MessageCircle, FolderOpen, FileText, Search,
-  Send, Loader2, CheckCircle2, ChevronRight, Tag as TagIcon,
+  Send, Loader2, CheckCircle2, ChevronRight, BookmarkPlus,
 } from "lucide-react";
 import type { Note, AIChatMessage, AIOrganizeResult, AIReport } from "@/types";
 
@@ -12,6 +12,7 @@ interface Props {
   onSearchResults: (results: Note[]) => void;
   onApplyOrganize: (suggestions: AIOrganizeResult[], allNotes: Note[]) => void;
   onOpenNote: (note: Note) => void;
+  onSaveToNote: (content: string, title?: string) => Promise<void>;
   onClose: () => void;
 }
 
@@ -24,7 +25,7 @@ const TABS = [
   { id: "search" as Tab,   icon: <Search size={15} />,        label: "Search" },
 ];
 
-export default function AIPanel({ notes, onSearchResults, onApplyOrganize, onOpenNote, onClose }: Props) {
+export default function AIPanel({ notes, onSearchResults, onApplyOrganize, onOpenNote, onSaveToNote, onClose }: Props) {
   const [tab, setTab] = useState<Tab>("chat");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +33,7 @@ export default function AIPanel({ notes, onSearchResults, onApplyOrganize, onOpe
   // Chat
   const [messages, setMessages] = useState<AIChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const [savedMsgIdx, setSavedMsgIdx] = useState<Set<number>>(new Set());
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Organise
@@ -156,14 +158,31 @@ export default function AIPanel({ notes, onSearchResults, onApplyOrganize, onOpe
                 </div>
               )}
               {messages.map((m, i) => (
-                <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+                <div key={i} className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap ${
                     m.role === "user"
                       ? "bg-purple-500 text-white rounded-br-sm"
                       : "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-bl-sm"
                   }`}>
                     {m.content}
                   </div>
+                  {m.role === "assistant" && (
+                    <button
+                      onClick={async () => {
+                        await onSaveToNote(m.content);
+                        setSavedMsgIdx(prev => new Set(prev).add(i));
+                      }}
+                      className={`mt-1 flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors ${
+                        savedMsgIdx.has(i)
+                          ? "text-green-500 dark:text-green-400"
+                          : "text-gray-400 hover:text-purple-500 dark:hover:text-purple-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                      }`}
+                      title="Save this response as a note"
+                    >
+                      <BookmarkPlus size={12} />
+                      {savedMsgIdx.has(i) ? "Saved!" : "Save to note"}
+                    </button>
+                  )}
                 </div>
               ))}
               {loading && tab === "chat" && (

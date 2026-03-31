@@ -1,12 +1,11 @@
 import type { NoteColor } from "@/types";
 
-export const NOTE_COLORS: { key: NoteColor; label: string; bg: string; border: string }[] = [
-  { key: "default", label: "Default",  bg: "bg-white",       border: "border-gray-200"  },
-  { key: "yellow",  label: "Banana",   bg: "bg-[#fff475]",   border: "border-[#fff475]" },
-  { key: "green",   label: "Sage",     bg: "bg-[#ccff90]",   border: "border-[#ccff90]" },
-  { key: "blue",    label: "Peacock",  bg: "bg-[#cbf0f8]",   border: "border-[#cbf0f8]" },
-  { key: "purple",  label: "Lavender", bg: "bg-[#d7aefb]",   border: "border-[#d7aefb]" },
-  { key: "pink",    label: "Grape",    bg: "bg-[#fdcfe8]",   border: "border-[#fdcfe8]" },
+export const NOTE_COLORS: { key: NoteColor; label: string; hex: string }[] = [
+  { key: "default", label: "Orange",  hex: "#F4763A" },
+  { key: "pink",    label: "Pink",    hex: "#F589A3" },
+  { key: "yellow",  label: "Yellow",  hex: "#F2E832" },
+  { key: "blue",    label: "Cyan",    hex: "#29BBD8" },
+  { key: "purple",  label: "Purple",  hex: "#6B50A0" },
 ];
 
 export const TAG_COLORS = [
@@ -74,4 +73,18 @@ export function plainTextToHtml(text: string): string {
   if (!text) return "";
   if (text.startsWith("<")) return text; // already HTML
   return text.split("\n").map(line => `<p>${line || "<br>"}</p>`).join("");
+}
+
+export function projectColorToClass(color: string): string {
+  const map: Record<string, string> = {
+    blue:   "bg-blue-400",
+    green:  "bg-green-400",
+    purple: "bg-purple-400",
+    red:    "bg-red-400",
+    orange: "bg-orange-400",
+    teal:   "bg-teal-400",
+    pink:   "bg-pink-400",
+    gray:   "bg-gray-400",
+  };
+  return map[color] ?? "bg-gray-400";
 }

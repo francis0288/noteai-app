@@ -1,17 +1,40 @@
-export default function NoteAILogo({ size = 32, className = "" }: { size?: number; className?: string }) {
+"use client";
+
+import { useTheme } from "./ThemeProvider";
+
+export default function NoteAILogo({ size = 40, className = "" }: { size?: number; className?: string }) {
+  const { isDark } = useTheme();
+
+  if (isDark) {
+    // Dark mode: show logo inside a subtle white pill so it stays visible
+    return (
+      <div
+        className={`flex-shrink-0 rounded-2xl bg-white/95 overflow-hidden flex items-center justify-center ${className}`}
+        style={{ width: size, height: size, padding: size * 0.06 }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo.png"
+          alt="NoteAI"
+          style={{ width: "100%", height: "100%", objectFit: "contain" }}
+        />
+      </div>
+    );
+  }
+
+  // Light mode: multiply blend makes the white card transparent against the white header
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-      {/* Lightbulb body */}
-      <path
-        d="M20 4C13.373 4 8 9.373 8 16c0 4.418 2.239 8.306 5.625 10.625V30a2 2 0 002 2h8.75a2 2 0 002-2v-3.375C29.761 24.306 32 20.418 32 16c0-6.627-5.373-12-12-12z"
-        fill="#F59E0B"
-      />
-      {/* Base lines */}
-      <rect x="14" y="32" width="12" height="2" rx="1" fill="#D97706" />
-      <rect x="15.5" y="35" width="9" height="2" rx="1" fill="#D97706" />
-      {/* Spark/AI symbol inside */}
-      <path d="M20 10l1.5 4.5H26l-3.75 2.75 1.5 4.5L20 19l-3.75 2.75 1.5-4.5L14 14.5h4.5L20 10z"
-        fill="white" opacity="0.9" />
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/logo.png"
+      alt="NoteAI"
+      className={`flex-shrink-0 ${className}`}
+      style={{
+        width: size,
+        height: size,
+        objectFit: "contain",
+        mixBlendMode: "multiply",
+      }}
+    />
   );
 }

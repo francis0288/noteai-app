@@ -2,20 +2,19 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Menu, X as XIcon, CheckSquare, AlignLeft, Loader2, Settings, LayoutGrid, List,
+  X as XIcon, Loader2, LayoutGrid, List, Search,
 } from "lucide-react";
-import type { Note, Tag, RecurringType, NoteType, AIOrganizeResult, NotePayload } from "@/types";
+import type { Note, Tag, RecurringType, AIOrganizeResult, NotePayload, Project } from "@/types";
 import NoteGrid from "@/components/NoteGrid";
 import NoteEditor from "@/components/NoteEditor";
+import InlineNoteCreator from "@/components/InlineNoteCreator";
+import CalendarView from "@/components/CalendarView";
 import Sidebar, { type SidebarView } from "@/components/Sidebar";
-import SearchBar from "@/components/SearchBar";
 import AIPanel from "@/components/AIPanel";
 import SettingsPanel from "@/components/SettingsPanel";
-import NoteAILogo from "@/components/NoteAILogo";
+import TemplateManager from "@/components/TemplateManager";
 import { useLayoutMode } from "@/hooks/useLayoutMode";
 import { useAutoSync } from "@/hooks/useAutoSync";
-
-type QuickType = NoteType | null;
 
 function useSidebarCollapsed(): [boolean, () => void] {
   const [collapsed, setCollapsed] = useState(false);
@@ -30,16 +29,24 @@ function useSidebarCollapsed(): [boolean, () => void] {
   return [collapsed, toggle];
 }
 
+// Stack entry for navigating into sub-notes
+interface NoteStackEntry {
+  note: Note;
+  parentTitle: string; // the title of the note above this one
+}
+
 export default function Home() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<SidebarView>("notes");
   const [search, setSearch] = useState("");
-  const [editingNote, setEditingNote] = useState<Note | null | undefined>(undefined);
+  // noteStack: history of notes for sub-note navigation
+  // The last item is the currently-shown note
+  const [noteStack, setNoteStack] = useState<NoteStackEntry[]>([]);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [aiFilteredNotes, setAiFilteredNotes] = useState<Note[] | null>(null);
-  const [quickType, setQuickType] = useState<QuickType>(null);
   const [reminderCount, setReminderCount] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -62,21 +69,33 @@ export default function Home() {
       showToast("Google Drive connected!");
       window.history.replaceState({}, "", "/");
     }
-    // Load sync interval
+    if (params.get("calendarConnected") === "true") {
+      showToast("Google Calendar connected!");
+      window.history.replaceState({}, "", "/");
+    }
     fetch("/api/settings").then(r => r.json()).then(s => {
       if (s.syncInterval) setSyncInterval(s.syncInterval);
     }).catch(() => {});
   }, []);
 
   const loadNotes = useCallback(async () => {
+    if (view === "templates") return; // templates view handled separately
     const archived = view === "archive";
+    const trash = view === "trash";
     const tagId = view.startsWith("tag:") ? view.slice(4) : undefined;
+    const projectId = view.startsWith("project:") ? view.slice(8) : undefined;
     const hasReminder = view === "reminders";
+    const noProject = view === "others";
+    const isChecklist = view === "checklists";
     const params = new URLSearchParams();
     if (archived) params.set("archived", "true");
+    if (trash) params.set("trash", "true");
     if (tagId) params.set("tagId", tagId);
+    if (projectId) params.set("projectId", projectId);
     if (search) params.set("search", search);
     if (hasReminder) params.set("hasReminder", "true");
+    if (noProject) params.set("noProject", "true");
+    if (isChecklist) params.set("type", "checklist");
     const res = await fetch(`/api/notes?${params}`);
     const data: Note[] = await res.json();
     setNotes(data);
@@ -88,6 +107,11 @@ export default function Home() {
     setTags(await res.json());
   }, []);
 
+  const loadProjects = useCallback(async () => {
+    const res = await fetch("/api/projects");
+    setProjects(await res.json());
+  }, []);
+
   const loadReminderCount = useCallback(async () => {
     const res = await fetch("/api/reminders?status=pending");
     setReminderCount((await res.json()).length);
@@ -95,8 +119,8 @@ export default function Home() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([loadNotes(), loadTags(), loadReminderCount()]).finally(() => setLoading(false));
-  }, [loadNotes, loadTags, loadReminderCount]);
+    Promise.all([loadNotes(), loadTags(), loadProjects(), loadReminderCount()]).finally(() => setLoading(false));
+  }, [loadNotes, loadTags, loadProjects, loadReminderCount]);
 
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
@@ -143,7 +167,13 @@ export default function Home() {
   const deleteNote = async (id: string) => {
     await fetch(`/api/notes/${id}`, { method: "DELETE" });
     await loadNotes();
-    showToast("Note deleted");
+    showToast(view === "trash" ? "Note permanently deleted" : "Note moved to trash");
+  };
+
+  const restoreNote = async (id: string) => {
+    await fetch(`/api/notes/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ restore: true }) });
+    await loadNotes();
+    showToast("Note restored!");
   };
 
   const createTag = async (name: string): Promise<Tag> => {
@@ -157,6 +187,43 @@ export default function Home() {
     await fetch(`/api/tags/${id}`, { method: "DELETE" });
     await loadTags();
     if (view === `tag:${id}`) setView("notes");
+  };
+
+  const createProject = async (name: string): Promise<Project> => {
+    const res = await fetch("/api/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+    const project: Project = await res.json();
+    await loadProjects();
+    return project;
+  };
+
+  const deleteProject = async (id: string) => {
+    await fetch(`/api/projects/${id}`, { method: "DELETE" });
+    await loadProjects();
+    if (view === `project:${id}`) setView("notes");
+  };
+
+  const updateNoteProjects = async (noteId: string, projectIds: string[]) => {
+    const currentNote = notes.find(n => n.id === noteId);
+    const currentIds = currentNote?.projects?.map(p => p.id) ?? [];
+    const added = projectIds.filter(id => !currentIds.includes(id));
+    const removed = currentIds.filter(id => !projectIds.includes(id));
+    await Promise.all([
+      ...added.map(projectId =>
+        fetch(`/api/projects/${projectId}/notes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ noteId }),
+        })
+      ),
+      ...removed.map(projectId =>
+        fetch(`/api/projects/${projectId}/notes`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ noteId }),
+        })
+      ),
+    ]);
+    await Promise.all([loadNotes(), loadProjects()]);
   };
 
   const addReminder = async (noteId: string, datetime: string, recurring: RecurringType) => {
@@ -179,6 +246,11 @@ export default function Home() {
     }
   };
 
+  const saveAIToNote = async (content: string) => {
+    await createNote({ title: "AI Response", content: `<p>${content.replace(/\n/g, "</p><p>")}</p>` });
+    showToast("Saved to notes!");
+  };
+
   const handleAIOrganize = async (suggestions: AIOrganizeResult[], allNotes: Note[]) => {
     for (const s of suggestions) {
       const tagIds: string[] = [];
@@ -191,13 +263,80 @@ export default function Home() {
     setAiPanelOpen(false);
   };
 
+  // ---- Sub-note navigation ----
+
+  /** Open a note (top-level) — resets the stack */
+  const openNote = (note: Note) => {
+    setNoteStack([{ note, parentTitle: "" }]);
+  };
+
+  /** Navigate into a sub-note by ID */
+  const openSubNote = async (subNoteId: string) => {
+    const res = await fetch(`/api/notes/${subNoteId}`);
+    const subNote: Note = await res.json();
+    setNoteStack(prev => {
+      const currentTitle = prev.length > 0 ? (prev[prev.length - 1].note.title || "Untitled") : "";
+      return [...prev, { note: subNote, parentTitle: currentTitle }];
+    });
+  };
+
+  /** Create a new sub-note under parentId, then navigate into it */
+  const createAndOpenSubNote = async (parentId: string) => {
+    const res = await fetch("/api/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parentId, title: "", content: "" }),
+    });
+    const subNote: Note = await res.json();
+    setNoteStack(prev => {
+      const currentTitle = prev.length > 0 ? (prev[prev.length - 1].note.title || "Untitled") : "";
+      return [...prev, { note: subNote, parentTitle: currentTitle }];
+    });
+    await loadNotes();
+  };
+
+  /** Go back one level */
+  const goBack = async () => {
+    if (noteStack.length <= 1) {
+      setNoteStack([]);
+      return;
+    }
+    // Reload the parent note to get updated children list
+    const parentEntry = noteStack[noteStack.length - 2];
+    const res = await fetch(`/api/notes/${parentEntry.note.id}`);
+    const refreshedParent: Note = await res.json();
+    setNoteStack(prev => [
+      ...prev.slice(0, -2),
+      { note: refreshedParent, parentTitle: prev[prev.length - 2].parentTitle },
+    ]);
+  };
+
+  /** Close the editor entirely */
+  const closeEditor = async () => {
+    setNoteStack([]);
+    await loadNotes();
+  };
+
+  const currentEntry = noteStack.length > 0 ? noteStack[noteStack.length - 1] : null;
+  const editingNote = currentEntry?.note;
+  const currentDepth = noteStack.length - 1; // 0 for top-level
+  const parentTitle = currentEntry?.parentTitle ?? "";
+
   const displayNotes = aiFilteredNotes ?? notes;
   const viewLabel =
-    view === "notes" ? "Notes" : view === "archive" ? "Archive" : view === "reminders" ? "Reminders"
+    view === "notes" ? "Notes"
+    : view === "archive" ? "Archive"
+    : view === "reminders" ? "Reminders"
+    : view === "calendar" ? "Calendar"
+    : view === "others" ? "Others"
+    : view === "checklists" ? "Checklists"
+    : view === "trash" ? "Trash"
+    : view === "templates" ? "Templates"
+    : view.startsWith("project:") ? (projects.find(p => `project:${p.id}` === view)?.name ?? "Project")
     : tags.find(t => `tag:${t.id}` === view)?.name ?? "Notes";
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#fafafa] dark:bg-[#202124]">
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden", backgroundColor: "var(--bg-base)" }}>
       <Sidebar
         view={view}
         onViewChange={setView}
@@ -206,102 +345,209 @@ export default function Home() {
         reminderCount={reminderCount}
         collapsed={sidebarCollapsed}
         onToggleCollapse={toggleSidebarCollapsed}
+        projects={projects}
+        onDeleteProject={deleteProject}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
-      <div className="flex flex-col flex-1 min-w-0">
-        {/* Header */}
-        <header className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-[#202124] border-b border-gray-100 dark:border-gray-800 shadow-sm z-10">
-          <div className="flex items-center gap-2.5 mr-2">
-            <NoteAILogo size={36} />
-            <span className="font-bold text-gray-800 dark:text-gray-100 text-xl hidden sm:inline">NoteAI</span>
+      {/* Main column */}
+      <div
+        style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, overflow: "hidden" }}
+        onClick={() => { if (!sidebarCollapsed) toggleSidebarCollapsed(); }}
+      >
+        {/* ── Topbar ── */}
+        <header style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          padding: "0 28px",
+          height: 68,
+          borderBottom: "1px solid var(--border)",
+          flexShrink: 0,
+          backgroundColor: "var(--bg-base)",
+          zIndex: 10,
+        }}>
+          {/* Search bar — centred, grows */}
+          <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+            <div
+              className="search-wrap"
+              onClick={e => e.stopPropagation()}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                width: "100%",
+                maxWidth: 520,
+                backgroundColor: "var(--bg-surface)",
+                border: "1px solid var(--border-hi)",
+                borderRadius: 100,
+                padding: "0 14px",
+                height: 42,
+                transition: "border-color 0.2s, box-shadow 0.2s",
+              }}
+            >
+              <Search size={15} style={{ color: "var(--text-3)", flexShrink: 0 }} />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search notes…"
+                autoComplete="off"
+                style={{
+                  flex: 1,
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: 14,
+                  fontWeight: 300,
+                  color: "var(--text-1)",
+                }}
+              />
+              {search && (
+                <button
+                  onClick={e => { e.stopPropagation(); setSearch(""); }}
+                  style={{ color: "var(--text-3)", display: "flex", alignItems: "center" }}
+                >
+                  <XIcon size={14} />
+                </button>
+              )}
+              {/* AI badge */}
+              <button
+                onClick={e => { e.stopPropagation(); setAiPanelOpen(true); }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "4px 10px",
+                  borderRadius: 100,
+                  backgroundColor: "var(--cyan-dim)",
+                  border: "1px solid rgba(41,187,216,0.25)",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                  fontFamily: "'Syne', sans-serif",
+                  fontWeight: 700,
+                  fontSize: 11,
+                  letterSpacing: "0.4px",
+                  color: "var(--cyan)",
+                  transition: "background-color 0.22s",
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(41,187,216,0.22)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--cyan-dim)"; }}
+              >
+                ✦ AI
+              </button>
+            </div>
           </div>
 
-          <SearchBar value={search} onChange={setSearch} onAISearch={() => setAiPanelOpen(true)} aiActive={aiPanelOpen || aiFilteredNotes !== null} />
+          {/* Right actions */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            {/* AI filter result clear */}
+            {aiFilteredNotes && (
+              <button
+                onClick={e => { e.stopPropagation(); setAiFilteredNotes(null); }}
+                style={{ color: "var(--text-3)", fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}
+              >
+                <XIcon size={14} /> Clear
+              </button>
+            )}
 
-          <button onClick={() => setSettingsOpen(true)}
-            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400" title="Settings">
-            <Settings size={22} />
-          </button>
+            {/* Layout toggle */}
+            <TopbarIconBtn
+              onClick={e => { e.stopPropagation(); setLayoutMode(layoutMode === "grid" ? "list" : "grid"); }}
+              title={layoutMode === "grid" ? "List view" : "Grid view"}
+            >
+              {layoutMode === "grid" ? <List size={17} /> : <LayoutGrid size={17} />}
+            </TopbarIconBtn>
+
+          </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-6xl mx-auto px-4 py-6">
-            {view === "notes" && (
-              <div className="mb-8 flex flex-col items-center gap-2">
-                <div
-                  className="w-full max-w-2xl bg-white dark:bg-[#2d2d2d] rounded-2xl shadow border border-gray-200 dark:border-gray-700 px-5 py-4 flex items-center gap-3 cursor-text hover:shadow-md transition-shadow"
-                  onClick={() => { setQuickType("text"); setEditingNote(null); }}
-                >
-                  <span className="text-gray-400 dark:text-gray-500 text-lg flex-1">Take a note...</span>
-                  <div className="flex gap-2">
-                    <button title="New checklist" onClick={e => { e.stopPropagation(); setQuickType("checklist"); setEditingNote(null); }}
-                      className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">
-                      <CheckSquare size={20} />
-                    </button>
-                    <button title="New text note" onClick={e => { e.stopPropagation(); setQuickType("text"); setEditingNote(null); }}
-                      className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">
-                      <AlignLeft size={20} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2">
-                <h1 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
-                  {viewLabel}
-                  {aiFilteredNotes && <span className="ml-2 normal-case text-brand-500 font-normal">— AI Results</span>}
-                </h1>
-                {aiFilteredNotes && (
-                  <button onClick={() => setAiFilteredNotes(null)} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex items-center gap-1">
-                    <XIcon size={12} /> Clear
-                  </button>
-                )}
-              </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => setLayoutMode("grid")} title="Grid view"
-                  className={`p-2 rounded-lg transition-colors ${layoutMode === "grid" ? "text-brand-600 bg-brand-50 dark:bg-amber-900/20" : "text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"}`}>
-                  <LayoutGrid size={18} />
-                </button>
-                <button onClick={() => setLayoutMode("list")} title="List view"
-                  className={`p-2 rounded-lg transition-colors ${layoutMode === "list" ? "text-brand-600 bg-brand-50 dark:bg-amber-900/20" : "text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"}`}>
-                  <List size={18} />
-                </button>
-              </div>
-            </div>
-
-            {loading ? (
-              <div className="flex items-center justify-center py-20 text-gray-400">
-                <Loader2 size={28} className="animate-spin" />
-              </div>
-            ) : (
-              <NoteGrid
-                notes={displayNotes} allTags={tags} onUpdate={updateNote} onDelete={deleteNote}
-                onOpenNote={note => setEditingNote(note)} onCreateTag={createTag}
-                onAddReminder={addReminder} onDeleteReminder={deleteReminder} onAISuggest={handleAISuggest}
-                layoutMode={layoutMode}
-                emptyMessage={
-                  search ? "No notes match your search."
-                  : view === "archive" ? "No archived notes."
-                  : view === "reminders" ? "No upcoming reminders."
-                  : "Click the bar above to create your first note!"
-                }
+        {/* ── Content area ── */}
+        <main style={{ flex: 1, overflowY: "auto", padding: "28px 30px" }}>
+          {/* Compose bar (notes view only) */}
+          {view === "notes" && (
+            <div style={{ marginBottom: 28 }} onClick={e => e.stopPropagation()}>
+              <InlineNoteCreator
+                allTags={tags}
+                onSave={createNote}
+                onCreateTag={createTag}
               />
-            )}
+            </div>
+          )}
+
+          {/* Section header */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            marginBottom: 18,
+          }}>
+            <span style={{
+              fontFamily: "'Syne', sans-serif",
+              fontWeight: 700,
+              fontSize: 11,
+              letterSpacing: "1.5px",
+              textTransform: "uppercase",
+              color: "var(--text-3)",
+            }}>
+              {viewLabel} · {displayNotes.length}
+            </span>
           </div>
+
+          {/* Notes */}
+          {view === "calendar" ? (
+            <CalendarView onOpenNote={note => openNote(note)} />
+          ) : loading ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "80px 0" }}>
+              <Loader2 size={26} style={{ color: "var(--text-3)", animation: "spin 1s linear infinite" }} />
+            </div>
+          ) : (
+            <NoteGrid
+              notes={displayNotes} allTags={tags} onUpdate={updateNote} onDelete={deleteNote}
+              onOpenNote={note => openNote(note)} onCreateTag={createTag}
+              onAddReminder={addReminder} onDeleteReminder={deleteReminder} onAISuggest={handleAISuggest}
+              layoutMode={layoutMode}
+              allProjects={projects}
+              onUpdateProjects={updateNoteProjects}
+              onRestore={restoreNote}
+              isTrash={view === "trash"}
+              emptyMessage={
+                search ? "No notes match your search."
+                : view === "archive" ? "No archived notes."
+                : view === "reminders" ? "No upcoming reminders."
+                : view === "trash" ? "Trash is empty."
+                : view === "checklists" ? "No checklist notes yet."
+                : view.startsWith("project:") ? "No notes in this project yet."
+                : "Tap compose above to capture a thought."
+              }
+            />
+          )}
         </main>
       </div>
 
       {/* Floating ✦ AI button */}
       <button
         onClick={() => setAiPanelOpen(x => !x)}
-        className={`fixed bottom-6 right-6 z-40 w-16 h-16 rounded-full shadow-xl text-2xl flex items-center justify-center transition-all ${
-          aiPanelOpen
-            ? "bg-brand-500 text-white scale-110 shadow-brand-500/40"
-            : "bg-white dark:bg-[#2d2d2d] text-brand-500 hover:bg-brand-50 dark:hover:bg-amber-900/30 border-2 border-brand-200 dark:border-amber-800"
-        }`}
         title="AI Assistant"
+        style={{
+          position: "fixed",
+          bottom: 24,
+          right: 24,
+          zIndex: 40,
+          width: 56,
+          height: 56,
+          borderRadius: "50%",
+          backgroundColor: aiPanelOpen ? "var(--cyan)" : "var(--bg-elevated)",
+          color: aiPanelOpen ? "#fff" : "var(--cyan)",
+          border: "1px solid var(--border-hi)",
+          fontSize: 22,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+          boxShadow: aiPanelOpen ? "0 0 28px var(--cyan-dim)" : "0 4px 20px rgba(0,0,0,0.4)",
+          transition: "all 0.2s ease",
+          transform: aiPanelOpen ? "scale(1.08)" : "scale(1)",
+        }}
       >
         ✦
       </button>
@@ -311,28 +557,119 @@ export default function Home() {
           notes={notes}
           onSearchResults={results => { setAiFilteredNotes(results); setAiPanelOpen(false); }}
           onApplyOrganize={handleAIOrganize}
-          onOpenNote={note => { setEditingNote(note); setAiPanelOpen(false); }}
+          onOpenNote={note => { openNote(note); setAiPanelOpen(false); }}
+          onSaveToNote={saveAIToNote}
           onClose={() => setAiPanelOpen(false)}
         />
       )}
 
       {editingNote !== undefined && (
         <NoteEditor
-          note={editingNote} allTags={tags} initialFocus="content"
-          onSave={async data => { const note = await createNote({ ...data, type: quickType ?? "text" }); setQuickType(null); return note; }}
-          onUpdate={updateNote} onDelete={deleteNote}
-          onClose={() => { setEditingNote(undefined); setQuickType(null); }}
-          onCreateTag={createTag} onAddReminder={addReminder} onDeleteReminder={deleteReminder} onAISuggest={handleAISuggest}
+          note={editingNote}
+          allTags={tags}
+          initialFocus="title"
+          depth={currentDepth}
+          parentTitle={parentTitle}
+          onSave={createNote}
+          onUpdate={updateNote}
+          onDelete={deleteNote}
+          onClose={closeEditor}
+          onGoBack={currentDepth > 0 ? goBack : undefined}
+          onCreateTag={createTag}
+          onAddReminder={addReminder}
+          onDeleteReminder={deleteReminder}
+          onAISuggest={handleAISuggest}
+          allProjects={projects}
+          onUpdateProjects={updateNoteProjects}
+          onOpenSubNote={openSubNote}
+          onCreateSubNote={createAndOpenSubNote}
         />
       )}
 
+      {view === "templates" && <TemplateManager onClose={() => setView("notes")} />}
       {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
 
       {toast && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-gray-800 dark:bg-gray-700 text-white text-base px-5 py-2.5 rounded-full shadow-lg z-50">
+        <div style={{
+          position: "fixed",
+          bottom: 88,
+          left: "50%",
+          transform: "translateX(-50%)",
+          backgroundColor: "var(--bg-elevated)",
+          border: "1px solid var(--border-hi)",
+          color: "var(--text-1)",
+          fontSize: 14,
+          padding: "10px 22px",
+          borderRadius: 100,
+          boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
+          zIndex: 50,
+          fontFamily: "'DM Sans', sans-serif",
+          whiteSpace: "nowrap",
+        }}>
           {toast}
         </div>
       )}
     </div>
+  );
+}
+
+function TopbarIconBtn({ onClick, title, children }: {
+  onClick: (e: React.MouseEvent) => void; title?: string; children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        width: 38, height: 38,
+        borderRadius: 9,
+        border: "1.5px solid var(--border)",
+        backgroundColor: "transparent",
+        color: "var(--text-2)",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        transition: "background-color 0.22s, border-color 0.22s, color 0.22s",
+      }}
+      onMouseEnter={e => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.backgroundColor = "var(--bg-hover)";
+        el.style.borderColor = "var(--border-hi)";
+        el.style.color = "var(--text-1)";
+      }}
+      onMouseLeave={e => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.backgroundColor = "transparent";
+        el.style.borderColor = "var(--border)";
+        el.style.color = "var(--text-2)";
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function IconBtn({ onClick, active, title, children }: {
+  onClick: () => void; active?: boolean; title?: string; children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        padding: "6px",
+        borderRadius: 6,
+        border: "none",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        backgroundColor: active ? "var(--orange-dim)" : "transparent",
+        color: active ? "var(--orange)" : "var(--text-3)",
+        transition: "background-color 0.15s, color 0.15s",
+      }}
+    >
+      {children}
+    </button>
   );
 }

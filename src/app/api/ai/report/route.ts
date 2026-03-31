@@ -46,6 +46,10 @@ export async function POST(req: NextRequest) {
     color: n.color as Note["color"],
     attachments: [],
     driveSync: null,
+    projects: [],
+    locked: false,
+    parentId: null,
+    children: [],
   }));
 
   const apiKey = await getUserApiKey(userId!);

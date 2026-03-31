@@ -47,7 +47,7 @@ function ResetForm() {
               <input
                 type={showPw ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)}
                 required minLength={8}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base outline-none focus:ring-2 focus:ring-amber-400 pr-12"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base outline-none focus:ring-2 focus:ring-brand-400 pr-12"
               />
               <button type="button" onClick={() => setShowPw(x => !x)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                 {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -55,7 +55,7 @@ function ResetForm() {
             </div>
           </div>
           <button type="submit" disabled={loading}
-            className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2">
+            className="w-full bg-brand-500 hover:bg-brand-600 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2">
             {loading && <Loader2 size={18} className="animate-spin" />}
             Reset Password
           </button>
@@ -67,12 +67,11 @@ function ResetForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 to-yellow-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-cyan-50 to-blue-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-14 h-14 bg-amber-400 rounded-2xl shadow-lg mb-3">
-            <span className="text-2xl">✦</span>
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="NoteAI" className="w-24 h-24 object-contain mx-auto mb-1" style={{ mixBlendMode: "multiply" }} />
           <h1 className="text-2xl font-bold text-gray-900">Reset Password</h1>
         </div>
         <Suspense fallback={<div className="text-center text-gray-400">Loading...</div>}>

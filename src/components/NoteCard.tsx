@@ -1,16 +1,18 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Pin, PinOff, Archive, Trash2, Bell, Tag as TagIcon,
-  Palette, Sparkles, RotateCcw, Mic, Image
+  Palette, Sparkles, RotateCcw, Mic, Image, FolderPlus, Lock,
+  RefreshCw, MoreVertical, CheckSquare, AlignLeft, Edit3,
 } from "lucide-react";
-import type { Note, Tag, NoteColor, RecurringType, NotePayload, LayoutMode } from "@/types";
-import { colorToBg, colorToBgDark, tagColorToClass, formatDate } from "@/lib/utils";
-import { useTheme } from "./ThemeProvider";
+import NoteLockModal from "./NoteLockModal";
+import type { Note, Tag, NoteColor, RecurringType, NotePayload, LayoutMode, Project } from "@/types";
+import { formatDate, projectColorToClass } from "@/lib/utils";
 import ColorPicker from "./ColorPicker";
 import TagPicker from "./TagPicker";
 import ReminderPicker from "./ReminderPicker";
+import ProjectPicker from "./ProjectPicker";
 
 interface Props {
   note: Note;
@@ -23,88 +25,255 @@ interface Props {
   onDeleteReminder: (reminderId: string) => Promise<void>;
   onAISuggest: (noteId: string) => Promise<void>;
   layoutMode?: LayoutMode;
+  allProjects: Project[];
+  onUpdateProjects: (noteId: string, projectIds: string[]) => Promise<void>;
+  onRestore?: (id: string) => Promise<void>;
+  isTrash?: boolean;
+  index?: number; // for stagger animation
 }
 
-type Popup = "color" | "tag" | "reminder" | null;
+type SubPanel = "color" | "tag" | "reminder" | "project" | null;
+
+/* ── Color mapping ──────────────────────────────────────────── */
+interface Accent { border: string; glow: string; tag: string; tagText: string; tagBorder: string; }
+
+function noteAccent(color: string): Accent {
+  switch (color) {
+    case "yellow":  return { border: "var(--yellow)",  glow: "rgba(242,232,50,0.08)",   tag: "var(--yellow-dim)", tagText: "#c8be00",       tagBorder: "rgba(242,232,50,0.22)"  };
+    case "green":   return { border: "var(--cyan)",    glow: "rgba(41,187,216,0.08)",   tag: "var(--cyan-dim)",   tagText: "var(--cyan)",   tagBorder: "rgba(41,187,216,0.22)"  };
+    case "blue":    return { border: "var(--cyan)",    glow: "rgba(41,187,216,0.08)",   tag: "var(--cyan-dim)",   tagText: "var(--cyan)",   tagBorder: "rgba(41,187,216,0.22)"  };
+    case "purple":  return { border: "var(--purple)",  glow: "rgba(107,80,160,0.08)",   tag: "var(--purple-dim)", tagText: "#9B7BD0",        tagBorder: "rgba(107,80,160,0.22)"  };
+    case "pink":    return { border: "var(--pink)",    glow: "rgba(245,137,163,0.08)",  tag: "var(--pink-dim)",   tagText: "var(--pink)",   tagBorder: "rgba(245,137,163,0.22)" };
+    default:        return { border: "var(--orange)",  glow: "rgba(244,118,58,0.08)",   tag: "var(--orange-dim)", tagText: "var(--orange)", tagBorder: "rgba(244,118,58,0.22)"  };
+  }
+}
+
+function accentText(color: string): string {
+  switch (color) {
+    case "yellow":  return "#c8be00";
+    case "green":
+    case "blue":    return "var(--cyan)";
+    case "purple":  return "#9B7BD0";
+    case "pink":    return "var(--pink)";
+    default:        return "var(--orange)";
+  }
+}
 
 export default function NoteCard({
   note, allTags, onUpdate, onDelete, onClick,
   onCreateTag, onAddReminder, onDeleteReminder, onAISuggest,
-  layoutMode = "grid",
+  layoutMode = "grid", allProjects, onUpdateProjects, onRestore, isTrash,
+  index = 0,
 }: Props) {
-  const { isDark } = useTheme();
-  const [popup, setPopup] = useState<Popup>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [subPanel, setSubPanel] = useState<SubPanel>(null);
+  const [hovered, setHovered] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const currentProjectIds = useRef<string[]>(note.projects?.map(p => p.id) ?? []);
 
-  const bg = isDark ? colorToBgDark(note.color as NoteColor) : colorToBg(note.color as NoteColor);
-  const pendingReminders = note.reminders.filter((r) => r.status === "pending");
+  const accent = noteAccent(note.color as string);
+  const pendingReminders = note.reminders.filter(r => r.status === "pending");
   const photos = note.attachments?.filter(a => a.type === "photo") ?? [];
   const voiceCount = note.attachments?.filter(a => a.type === "voice").length ?? 0;
+  const noteProjects = note.projects ?? [];
+  const plainContent = note.content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
-  const togglePopup = (p: Popup) => setPopup(popup === p ? null : p);
+  const [lockModal, setLockModal] = useState(false);
+  const isList = layoutMode === "list";
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+        setSubPanel(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
+
+  const closeMenu = () => { setMenuOpen(false); setSubPanel(null); };
 
   const handleOuterClick = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest("[data-toolbar]")) return;
+    if ((e.target as HTMLElement).closest("[data-menu]")) return;
+    if (note.locked) { setLockModal(true); return; }
     onClick(note);
   };
 
-  const isList = layoutMode === "list";
+  const handleProjectsChange = async (ids: string[]) => {
+    currentProjectIds.current = ids;
+    await onUpdateProjects(note.id, ids);
+  };
 
-  // Strip HTML for preview
-  const plainContent = note.content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const handleCreateProject = async (name: string): Promise<Project> => {
+    const res = await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    return res.json();
+  };
 
   return (
     <div
-      className={`relative group rounded-xl border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 hover:shadow-md transition-all duration-150 cursor-pointer select-none ${
-        isList ? "flex items-start gap-3 p-3" : ""
-      }`}
-      style={{ backgroundColor: bg }}
+      className="animate-fade-up"
+      style={{
+        animationDelay: `${index * 45}ms`,
+        backgroundColor: hovered ? "var(--bg-elevated)" : "var(--bg-surface)",
+        borderTopWidth: "3px",
+        borderTopStyle: "solid",
+        borderTopColor: accent.border,
+        borderRightWidth: "1.5px",
+        borderRightStyle: "solid",
+        borderRightColor: hovered ? "var(--border-hi)" : "var(--border)",
+        borderBottomWidth: "1.5px",
+        borderBottomStyle: "solid",
+        borderBottomColor: hovered ? "var(--border-hi)" : "var(--border)",
+        borderLeftWidth: "1.5px",
+        borderLeftStyle: "solid",
+        borderLeftColor: hovered ? "var(--border-hi)" : "var(--border)",
+        borderRadius: 15,
+        cursor: "pointer",
+        position: "relative",
+        userSelect: "none",
+        transition: "transform 0.22s cubic-bezier(0.4,0,0.2,1), box-shadow 0.22s cubic-bezier(0.4,0,0.2,1), background-color 0.22s cubic-bezier(0.4,0,0.2,1), border-color 0.22s cubic-bezier(0.4,0,0.2,1)",
+        transform: hovered ? "translateY(-3px)" : "translateY(0)",
+        boxShadow: hovered
+          ? `0 10px 36px rgba(0,0,0,0.32), 0 0 24px ${accent.glow}`
+          : "none",
+        ...(isList ? { display: "flex", alignItems: "flex-start", gap: 14, padding: "14px 16px" } : {}),
+      } as React.CSSProperties}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       onClick={handleOuterClick}
     >
-      {/* Pin indicator */}
-      {note.pinned && (
-        <div className={`text-gray-400 dark:text-gray-500 ${isList ? "mt-1 flex-shrink-0" : "absolute top-2 right-2"}`}>
-          <Pin size={14} />
-        </div>
-      )}
+      {/* Card content */}
+      {/* Glass sheen */}
+      <div className="note-card-sheen" style={{ position: "absolute", inset: 0, pointerEvents: "none", borderRadius: 15, zIndex: 0 }} />
 
-      {/* Content */}
-      <div className={isList ? "flex-1 min-w-0" : "p-3 pb-2"}>
-        {note.title && (
-          <h3 className={`font-medium text-gray-800 dark:text-gray-100 text-base leading-snug ${isList ? "mb-0.5" : "mb-1 pr-5 line-clamp-2"}`}>
-            {note.title}
-          </h3>
+      <div style={isList ? { flex: 1, minWidth: 0, position: "relative", zIndex: 1 } : { padding: "20px 20px 15px", position: "relative", zIndex: 1 }}>
+        {/* AI label */}
+        {note.pinned && !isList && (
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            marginBottom: 8,
+          }}>
+            <span className="pulse-dot" style={{
+              width: 6, height: 6,
+              borderRadius: "50%",
+              backgroundColor: accent.border,
+              display: "inline-block",
+              flexShrink: 0,
+            }} />
+            <span style={{
+              fontFamily: "'Syne', sans-serif",
+              fontWeight: 700,
+              fontSize: 10,
+              letterSpacing: "1.4px",
+              textTransform: "uppercase",
+              color: accentText(note.color as string),
+            }}>
+              Pinned
+            </span>
+          </div>
         )}
 
-        {note.type === "checklist" ? (
-          <ul className="space-y-0.5">
-            {note.checklistItems.slice(0, isList ? 3 : 8).map((item) => (
-              <li key={item.id} className="flex items-start gap-1.5 text-sm text-gray-600 dark:text-gray-300">
-                <span className={`mt-0.5 ${item.checked ? "line-through text-gray-400 dark:text-gray-500" : ""}`}>
-                  {item.checked ? "☑" : "☐"} {item.text}
-                </span>
+        {/* Title row */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+          {note.title && (
+            <h3 style={{
+              margin: 0,
+              fontFamily: "'Syne', sans-serif",
+              fontWeight: 700,
+              fontSize: 15,
+              lineHeight: 1.35,
+              color: "var(--text-1)",
+              overflow: "hidden",
+              display: "-webkit-box",
+              WebkitLineClamp: isList ? 1 : 2,
+              WebkitBoxOrient: "vertical",
+            }}>
+              {note.title}
+            </h3>
+          )}
+          {note.locked && (
+            <Lock size={13} style={{ color: "var(--text-3)", flexShrink: 0, marginTop: 2 }} />
+          )}
+        </div>
+
+        {/* Body */}
+        {note.locked ? (
+          <p style={{
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: 13,
+            fontStyle: "italic",
+            color: "var(--text-3)",
+            margin: 0,
+          }}>
+            Password protected
+          </p>
+        ) : note.type === "checklist" ? (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {note.checklistItems.slice(0, isList ? 3 : 7).map(item => (
+              <li key={item.id} style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 7,
+                marginBottom: 3,
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: 13,
+                fontWeight: 300,
+                color: item.checked ? "var(--text-3)" : "var(--text-2)",
+                textDecoration: item.checked ? "line-through" : "none",
+              }}>
+                <span style={{ flexShrink: 0, marginTop: 1 }}>{item.checked ? "☑" : "☐"}</span>
+                {item.text}
               </li>
             ))}
-            {note.checklistItems.length > (isList ? 3 : 8) && (
-              <li className="text-sm text-gray-400 dark:text-gray-500">+{note.checklistItems.length - (isList ? 3 : 8)} more</li>
+            {note.checklistItems.length > (isList ? 3 : 7) && (
+              <li style={{ fontSize: 12, color: "var(--text-3)", fontFamily: "'DM Sans', sans-serif" }}>
+                +{note.checklistItems.length - (isList ? 3 : 7)} more
+              </li>
             )}
           </ul>
         ) : (
-          <p className={`text-sm text-gray-600 dark:text-gray-300 leading-relaxed ${isList ? "line-clamp-2" : "line-clamp-6 whitespace-pre-wrap"}`}>
+          <p style={{
+            margin: 0,
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: 14,
+            fontWeight: 300,
+            lineHeight: 1.7,
+            color: "var(--text-2)",
+            overflow: "hidden",
+            display: "-webkit-box",
+            WebkitLineClamp: isList ? 2 : 3,
+            WebkitBoxOrient: "vertical",
+          }}>
             {plainContent}
           </p>
         )}
 
         {/* Photo thumbnails */}
         {photos.length > 0 && (
-          <div className={`flex gap-1.5 mt-2 flex-wrap ${isList ? "" : ""}`}>
-            {photos.slice(0, isList ? 2 : 4).map(a => (
+          <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+            {photos.slice(0, isList ? 2 : 3).map(a => (
               // eslint-disable-next-line @next/next/no-img-element
               <img key={a.id} src={a.url} alt={a.filename}
-                className="h-14 w-14 object-cover rounded-lg border border-black/10 dark:border-white/10" />
+                style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border-hi)" }} />
             ))}
-            {photos.length > (isList ? 2 : 4) && (
-              <div className="h-14 w-14 rounded-lg bg-black/10 dark:bg-white/10 flex items-center justify-center text-xs text-gray-500 dark:text-gray-400">
-                +{photos.length - (isList ? 2 : 4)}
+            {photos.length > (isList ? 2 : 3) && (
+              <div style={{
+                width: 56, height: 56, borderRadius: 8,
+                backgroundColor: "var(--bg-elevated)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 12, color: "var(--text-3)",
+                fontFamily: "'Syne', sans-serif",
+              }}>
+                +{photos.length - (isList ? 2 : 3)}
               </div>
             )}
           </div>
@@ -112,126 +281,265 @@ export default function NoteCard({
 
         {/* Tags */}
         {note.tags.length > 0 && (
-          <div className={`flex flex-wrap gap-1 ${isList ? "mt-1" : "mt-2"}`}>
-            {note.tags.map((tag) => (
-              <span key={tag.id} className={`text-xs px-2 py-0.5 rounded-full ${tagColorToClass(tag.color)}`}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
+            {note.tags.map(tag => (
+              <span key={tag.id} style={{
+                fontFamily: "'Syne', sans-serif",
+                fontWeight: 700,
+                fontSize: 11.5,
+                letterSpacing: "0.3px",
+                padding: "3px 9px",
+                borderRadius: 100,
+                backgroundColor: accent.tag,
+                color: accent.tagText,
+                border: `1px solid ${accent.tagBorder}`,
+              }}>
                 {tag.name}
               </span>
             ))}
           </div>
         )}
 
+        {/* Project badges */}
+        {noteProjects.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>
+            {noteProjects.map(proj => (
+              <span key={proj.id} style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                fontSize: 11,
+                padding: "2px 8px",
+                borderRadius: 100,
+                backgroundColor: "var(--bg-elevated)",
+                color: "var(--text-2)",
+                fontFamily: "'DM Sans', sans-serif",
+              }}>
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${projectColorToClass(proj.color)}`} />
+                {proj.name}
+              </span>
+            ))}
+          </div>
+        )}
+
         {/* Footer */}
-        <div className="flex items-center gap-2 mt-1.5">
-          <span className="text-xs text-gray-400 dark:text-gray-500">{formatDate(note.updatedAt)}</span>
-          {pendingReminders.length > 0 && (
-            <span className="flex items-center gap-0.5 text-xs text-yellow-600 dark:text-yellow-500">
-              <Bell size={11} /> {pendingReminders.length}
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginTop: 12,
+          paddingTop: 10,
+          borderTop: "1px solid var(--border)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{
+              fontFamily: "'Syne', sans-serif",
+              fontWeight: 500,
+              fontSize: 11,
+              color: "var(--text-3)",
+            }}>
+              {formatDate(note.updatedAt)}
             </span>
-          )}
-          {voiceCount > 0 && (
-            <span className="flex items-center gap-0.5 text-xs text-purple-500">
-              <Mic size={11} /> {voiceCount}
-            </span>
-          )}
-          {photos.length > 0 && !isList && (
-            <span className="flex items-center gap-0.5 text-xs text-blue-500">
-              <Image size={11} /> {photos.length}
-            </span>
-          )}
-        </div>
-      </div>
+            {pendingReminders.length > 0 && (
+              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--pink)" }}>
+                <Bell size={11} /> {pendingReminders.length}
+              </span>
+            )}
+            {voiceCount > 0 && (
+              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#9B6FD4" }}>
+                <Mic size={11} /> {voiceCount}
+              </span>
+            )}
+            {photos.length > 0 && !isList && (
+              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--cyan)" }}>
+                <Image size={11} /> {photos.length}
+              </span>
+            )}
+          </div>
 
-      {/* Toolbar — visible on hover */}
-      <div
-        data-toolbar
-        className={`flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${
-          isList ? "flex-shrink-0 self-center" : "absolute bottom-2 right-2"
-        }`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <ToolbarBtn icon={<Sparkles size={14} />} title="AI Suggest" onClick={() => onAISuggest(note.id)} />
-        <ToolbarBtn icon={<Bell size={14} />} title="Reminder" onClick={() => togglePopup("reminder")} active={popup === "reminder"} />
-        <ToolbarBtn icon={<TagIcon size={14} />} title="Tags" onClick={() => togglePopup("tag")} active={popup === "tag"} />
-        <ToolbarBtn icon={<Palette size={14} />} title="Color" onClick={() => togglePopup("color")} active={popup === "color"} />
-        <ToolbarBtn
-          icon={note.pinned ? <PinOff size={14} /> : <Pin size={14} />}
-          title={note.pinned ? "Unpin" : "Pin"}
-          onClick={() => onUpdate(note.id, { pinned: !note.pinned })}
-        />
-        <ToolbarBtn
-          icon={note.archived ? <RotateCcw size={14} /> : <Archive size={14} />}
-          title={note.archived ? "Restore" : "Archive"}
-          onClick={() => onUpdate(note.id, { archived: !note.archived })}
-        />
-        <ToolbarBtn icon={<Trash2 size={14} />} title="Delete" onClick={() => onDelete(note.id)} danger />
-      </div>
-
-      {/* Popups */}
-      {popup && (
-        <div
-          className="absolute bottom-10 right-2 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 min-w-[200px]"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            className="absolute top-1 right-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
-            onClick={() => setPopup(null)}
+          {/* Hover-reveal action icons */}
+          <div
+            data-menu
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+              opacity: hovered || menuOpen ? 1 : 0,
+              transition: "opacity 0.18s ease",
+            }}
+            onClick={e => e.stopPropagation()}
           >
-            ×
-          </button>
+            <ActionIcon title="Edit" onClick={() => onClick(note)}>
+              <Edit3 size={14} />
+            </ActionIcon>
 
-          {popup === "color" && (
-            <ColorPicker
-              value={note.color as NoteColor}
-              onChange={(color) => { onUpdate(note.id, { color }); setPopup(null); }}
-            />
-          )}
+            <div ref={menuRef} style={{ position: "relative" }}>
+              <ActionIcon title="More actions" onClick={() => { setMenuOpen(x => !x); setSubPanel(null); }}>
+                <MoreVertical size={14} />
+              </ActionIcon>
 
-          {popup === "tag" && (
-            <TagPicker
-              allTags={allTags}
-              selectedIds={note.tags.map((t) => t.id)}
-              onChange={(ids) => onUpdate(note.id, { tagIds: ids })}
-              onCreateTag={onCreateTag}
-            />
-          )}
+              {/* Dropdown menu */}
+              {menuOpen && (
+                <div style={{
+                  position: "absolute",
+                  bottom: 30,
+                  right: 0,
+                  backgroundColor: "var(--bg-elevated)",
+                  border: "1px solid var(--border-hi)",
+                  borderRadius: 14,
+                  boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+                  zIndex: 50,
+                  width: 210,
+                  overflow: "hidden",
+                  padding: "4px 0",
+                }}>
+                  {isTrash ? (
+                    <>
+                      <DropMenuItem icon={<RefreshCw size={14} />} label="Restore" onClick={() => { onRestore?.(note.id); closeMenu(); }} />
+                      <DropDivider />
+                      <DropMenuItem icon={<Trash2 size={14} />} label="Delete permanently" onClick={() => { onDelete(note.id); closeMenu(); }} danger />
+                    </>
+                  ) : (
+                    <>
+                      <DropMenuItem
+                        icon={note.type === "text" ? <CheckSquare size={14} /> : <AlignLeft size={14} />}
+                        label={note.type === "text" ? "Switch to checklist" : "Switch to text"}
+                        onClick={() => { onUpdate(note.id, { type: note.type === "text" ? "checklist" : "text" }); closeMenu(); }}
+                      />
+                      <DropDivider />
 
-          {popup === "reminder" && (
-            <ReminderPicker
-              reminders={note.reminders}
-              noteId={note.id}
-              onAdd={(dt, rec) => onAddReminder(note.id, dt, rec)}
-              onDelete={onDeleteReminder}
-            />
-          )}
+                      <DropMenuItem icon={<Palette size={14} />} label="Background colour" onClick={() => setSubPanel(subPanel === "color" ? null : "color")} active={subPanel === "color"} />
+                      {subPanel === "color" && (
+                        <div style={{ padding: "4px 8px 8px" }}>
+                          <ColorPicker value={note.color as NoteColor} onChange={c => { onUpdate(note.id, { color: c }); closeMenu(); }} />
+                        </div>
+                      )}
+
+                      <DropMenuItem icon={<TagIcon size={14} />} label="Labels" onClick={() => setSubPanel(subPanel === "tag" ? null : "tag")} active={subPanel === "tag"} />
+                      {subPanel === "tag" && (
+                        <div style={{ padding: "4px 8px 8px" }}>
+                          <TagPicker allTags={allTags} selectedIds={note.tags.map(t => t.id)} onChange={ids => onUpdate(note.id, { tagIds: ids })} onCreateTag={onCreateTag} />
+                        </div>
+                      )}
+
+                      <DropMenuItem icon={<FolderPlus size={14} />} label="Add to project" onClick={() => setSubPanel(subPanel === "project" ? null : "project")} active={subPanel === "project"} />
+                      {subPanel === "project" && (
+                        <div style={{ padding: "4px 8px 8px" }}>
+                          <ProjectPicker allProjects={allProjects} selectedIds={noteProjects.map(p => p.id)} onChange={handleProjectsChange} onCreateProject={handleCreateProject} />
+                        </div>
+                      )}
+
+                      <DropMenuItem icon={<Bell size={14} />} label="Set reminder" onClick={() => setSubPanel(subPanel === "reminder" ? null : "reminder")} active={subPanel === "reminder"} />
+                      {subPanel === "reminder" && (
+                        <div style={{ padding: "4px 8px 8px" }}>
+                          <ReminderPicker reminders={note.reminders} noteId={note.id} onAdd={(dt, rec) => onAddReminder(note.id, dt, rec)} onDelete={onDeleteReminder} />
+                        </div>
+                      )}
+
+                      <DropDivider />
+                      <DropMenuItem icon={<Sparkles size={14} />} label="AI Suggest" onClick={() => { onAISuggest(note.id); closeMenu(); }} />
+                      <DropMenuItem
+                        icon={note.pinned ? <PinOff size={14} /> : <Pin size={14} />}
+                        label={note.pinned ? "Unpin" : "Pin to top"}
+                        onClick={() => { onUpdate(note.id, { pinned: !note.pinned }); closeMenu(); }}
+                      />
+                      <DropMenuItem
+                        icon={note.archived ? <RotateCcw size={14} /> : <Archive size={14} />}
+                        label={note.archived ? "Unarchive" : "Archive"}
+                        onClick={() => { onUpdate(note.id, { archived: !note.archived }); closeMenu(); }}
+                      />
+                      <DropDivider />
+                      <DropMenuItem icon={<Trash2 size={14} />} label="Move to trash" onClick={() => { onDelete(note.id); closeMenu(); }} danger />
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
+      </div>
+
+      {/* Lock modal */}
+      {lockModal && (
+        <NoteLockModal
+          noteId={note.id}
+          noteTitle={note.title}
+          mode="unlock"
+          onSuccess={() => { setLockModal(false); onClick(note); }}
+          onClose={() => setLockModal(false)}
+        />
       )}
     </div>
   );
 }
 
-function ToolbarBtn({
-  icon, title, onClick, active, danger
-}: {
-  icon: React.ReactNode;
-  title: string;
-  onClick: () => void;
-  active?: boolean;
-  danger?: boolean;
-}) {
+/* ── Sub-components ─────────────────────────────────────────── */
+
+function ActionIcon({ title, onClick, children }: { title?: string; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       title={title}
       onClick={onClick}
-      className={`p-1.5 rounded-full transition-colors ${
-        danger
-          ? "text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
-          : active
-          ? "text-blue-500 bg-blue-50 dark:bg-blue-900/30"
-          : "text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10"
-      }`}
+      style={{
+        width: 26, height: 26,
+        borderRadius: 6,
+        border: "none",
+        cursor: "pointer",
+        color: "var(--text-3)",
+        backgroundColor: "var(--bg-hover)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 12,
+        transition: "color 0.12s, background-color 0.12s",
+      }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "var(--text-1)"; (e.currentTarget as HTMLElement).style.backgroundColor = "var(--border-hi)"; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "var(--text-3)"; (e.currentTarget as HTMLElement).style.backgroundColor = "var(--bg-hover)"; }}
     >
-      {icon}
+      {children}
     </button>
   );
+}
+
+function DropMenuItem({ icon, label, onClick, active, danger }: {
+  icon: React.ReactNode; label: string; onClick: () => void; active?: boolean; danger?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "9px 16px",
+        fontSize: 13,
+        fontFamily: "'DM Sans', sans-serif",
+        fontWeight: 400,
+        textAlign: "left",
+        border: "none",
+        cursor: "pointer",
+        backgroundColor: active ? "var(--orange-dim)" : "transparent",
+        color: danger ? "var(--pink)" : active ? "var(--orange)" : "var(--text-2)",
+        transition: "background-color 0.12s, color 0.12s",
+      }}
+      onMouseEnter={e => {
+        if (!active) {
+          (e.currentTarget as HTMLElement).style.backgroundColor = "var(--bg-hover)";
+          if (!danger) (e.currentTarget as HTMLElement).style.color = "var(--text-1)";
+        }
+      }}
+      onMouseLeave={e => {
+        (e.currentTarget as HTMLElement).style.backgroundColor = active ? "var(--orange-dim)" : "transparent";
+        (e.currentTarget as HTMLElement).style.color = danger ? "var(--pink)" : active ? "var(--orange)" : "var(--text-2)";
+      }}
+    >
+      <span style={{ opacity: 0.7, flexShrink: 0, display: "flex" }}>{icon}</span>
+      {label}
+    </button>
+  );
+}
+
+function DropDivider() {
+  return <div style={{ height: 1, backgroundColor: "var(--border)", margin: "3px 0" }} />;
 }
