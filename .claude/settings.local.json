@@ -33,7 +33,12 @@
       "Bash(Get-Process -Name node -ErrorAction SilentlyContinue)",
       "Bash(pkill -f \"next dev\")",
       "Bash(pkill -f \"node.*next\")",
-      "Bash(fuser -k 3000/tcp)"
+      "Bash(fuser -k 3000/tcp)",
+      "Bash(npx kill-port:*)",
+      "Bash(curl -s \"http://localhost:3000/api/drive/auth\" -L -o /dev/null -w \"%{url_effective}\")",
+      "Bash(node -e \"require\\(''dotenv''\\).config\\(\\); console.log\\(''CLIENT_ID:'', process.env.GOOGLE_CLIENT_ID ? ''SET'' : ''MISSING''\\)\")",
+      "Bash(node -e \":*)",
+      "Bash(curl -s -I \"http://localhost:3000/api/drive/auth\")"
     ]
   }
 }
