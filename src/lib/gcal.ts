@@ -13,11 +13,12 @@ function createOAuthClient() {
   );
 }
 
-export function getCalendarAuthUrl() {
+export function getCalendarAuthUrl(userId: string) {
   return createOAuthClient().generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
     prompt: "consent",
+    state: userId,
   });
 }
 

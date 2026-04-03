@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTokensFromCode } from "@/lib/drive";
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/session";
 
 export async function GET(req: NextRequest) {
-  const { userId, error } = await requireUser();
-  if (error) return NextResponse.redirect(new URL("/login", req.url));
+  const params = new URL(req.url).searchParams;
+  const code = params.get("code");
+  const userId = params.get("state");
 
-  const code = new URL(req.url).searchParams.get("code");
-  if (!code) return NextResponse.redirect(new URL("/?driveError=true", req.url));
+  console.log("[drive/callback] code:", !!code, "userId:", userId);
+
+  if (!code || !userId) {
+    console.log("[drive/callback] missing code or userId — aborting");
+    return NextResponse.redirect(new URL("/?driveError=true", req.url));
+  }
 
   try {
     const tokens = await getTokensFromCode(code);
+    console.log("[drive/callback] tokens:", !!tokens.access_token, !!tokens.refresh_token);
     if (!tokens.access_token || !tokens.refresh_token) {
       return NextResponse.redirect(new URL("/?driveError=true", req.url));
     }

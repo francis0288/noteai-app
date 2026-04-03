@@ -38,7 +38,8 @@
       "Bash(curl -s \"http://localhost:3000/api/drive/auth\" -L -o /dev/null -w \"%{url_effective}\")",
       "Bash(node -e \"require\\(''dotenv''\\).config\\(\\); console.log\\(''CLIENT_ID:'', process.env.GOOGLE_CLIENT_ID ? ''SET'' : ''MISSING''\\)\")",
       "Bash(node -e \":*)",
-      "Bash(curl -s -I \"http://localhost:3000/api/drive/auth\")"
+      "Bash(curl -s -I \"http://localhost:3000/api/drive/auth\")",
+      "Bash(node -e \"const p = require\\(''./node_modules/next-auth/package.json''\\); console.log\\(p.version\\)\")"
     ]
   }
 }
